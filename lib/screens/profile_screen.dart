@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
 import '../services/journal_service.dart';
 import 'edit_profile_screen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'help_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -20,9 +20,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _lastName;
   String? _bio;
   String? _profileImageUrl;
+  String? _location;
   int _journalCount = 0;
-  int _entryCount = 0;
+  int _followerCount = 0;
+  int _followingCount = 0;
   bool _isLoading = true;
+
+  static const String baseUrl = 'http://10.0.2.2:8080';
 
   @override
   void initState() {
@@ -37,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8080/auth/profile'),
+        Uri.parse('$baseUrl/auth/profile'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
@@ -47,6 +51,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _lastName = data['lastName'];
           _bio = data['bio'];
           _profileImageUrl = data['profileImageUrl'];
+          _location = data['location'];
+        });
+      }
+    } catch (e) {}
+
+    try {
+      final followResponse = await http.get(
+        Uri.parse('$baseUrl/users/$username/follow-status'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (followResponse.statusCode == 200) {
+        final data = jsonDecode(followResponse.body);
+        setState(() {
+          _followerCount = data['followerCount'] ?? 0;
+          _followingCount = data['followingCount'] ?? 0;
         });
       }
     } catch (e) {}
@@ -67,18 +86,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Çıkış yap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
         content: Text('Hesabınızdan çıkış yapmak istiyor musunuz?', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             child: const Text('Çıkış yap'),
           ),
         ],
@@ -87,9 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (shouldLogout == true) {
       await StorageService.clearAll();
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
+      if (mounted) Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
@@ -106,6 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildHeader(),
               _buildStats(),
               _buildMenu(),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -123,38 +133,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 16),
           GestureDetector(
             onTap: () async {
-              final updated = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-              );
+              final updated = await Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
               if (updated == true) _loadProfile();
             },
             child: Stack(
               children: [
                 Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppTheme.terracottaLight,
-                    borderRadius: BorderRadius.circular(40),
-                  ),
+                  width: 80, height: 80,
+                  decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(40)),
                   child: _profileImageUrl != null
-                      ? ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: Image.network(_profileImageUrl!, fit: BoxFit.cover),
-                  )
+                      ? ClipRRect(borderRadius: BorderRadius.circular(40), child: Image.network(_profileImageUrl!, fit: BoxFit.cover))
                       : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 40),
                 ),
                 Positioned(
-                  bottom: 0,
-                  right: 0,
+                  bottom: 0, right: 0,
                   child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: AppTheme.terracotta,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(color: AppTheme.terracotta, borderRadius: BorderRadius.circular(12)),
                     child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
                   ),
                 ),
@@ -163,22 +158,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _firstName != null && _lastName != null
-                ? '$_firstName $_lastName'
-                : _username ?? 'Gezgin',
+            _firstName != null && _lastName != null ? '$_firstName $_lastName' : _username ?? 'Gezgin',
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
           ),
           const SizedBox(height: 4),
-          Text(
-            '@${_username ?? ''}',
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-          ),
+          Text('@${_username ?? ''}', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
           if (_bio != null && _bio!.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(
-              _bio!,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
+            Text(_bio!, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5)),
+          ],
+          if (_location != null && _location!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary),
+                const SizedBox(width: 4),
+                Text(_location!, style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              ],
             ),
           ],
           const SizedBox(height: 16),
@@ -191,19 +188,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       margin: const EdgeInsets.all(24),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.border)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildStatItem('Ajanda', _journalCount.toString(), Icons.book_outlined),
           _buildDivider(),
-          _buildStatItem('Sayfa', _entryCount.toString(), Icons.article_outlined),
+          _buildStatItem('Takipçi', _followerCount.toString(), Icons.people_outline),
           _buildDivider(),
-          _buildStatItem('Ülke', '0', Icons.public),
+          _buildStatItem('Takip', _followingCount.toString(), Icons.person_add_outlined),
         ],
       ),
     );
@@ -221,25 +214,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildDivider() {
-    return Container(width: 1, height: 48, color: AppTheme.border);
-  }
+  Widget _buildDivider() => Container(width: 1, height: 48, color: AppTheme.border);
 
   Widget _buildMenu() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.border)),
       child: Column(
         children: [
           _buildMenuItem(Icons.person_outline, 'Profili Düzenle', () async {
-            final updated = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-            );
+            final updated = await Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
             if (updated == true) _loadProfile();
           }),
           _buildMenuDivider(),
@@ -252,10 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }),
           _buildMenuDivider(),
           _buildMenuItem(Icons.help_outline, 'Yardım', () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HelpScreen()),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpScreen()));
           }),
           _buildMenuDivider(),
           _buildMenuItem(Icons.logout, 'Çıkış Yap', _logout, isDestructive: true),
@@ -273,21 +254,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Icon(icon, color: isDestructive ? Colors.red.shade400 : AppTheme.textSecondary, size: 22),
             const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(fontSize: 15, color: isDestructive ? Colors.red.shade400 : AppTheme.textPrimary),
-              ),
-            ),
-            if (!isDestructive)
-              Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 20),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: isDestructive ? Colors.red.shade400 : AppTheme.textPrimary))),
+            if (!isDestructive) Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 20),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMenuDivider() {
-    return Divider(height: 1, color: AppTheme.border, indent: 20, endIndent: 20);
-  }
+  Widget _buildMenuDivider() => Divider(height: 1, color: AppTheme.border, indent: 20, endIndent: 20);
 }

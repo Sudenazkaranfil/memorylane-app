@@ -21,7 +21,7 @@ class AuthService {
       throw Exception(error['error'] ?? 'Giriş başarısız');
     }
   }
-  static Future<Map<String, dynamic>> register(
+  static Future<void> register(
       String username, String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
@@ -33,9 +33,7 @@ class AuthService {
       }),
     );
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+    if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
       throw Exception(error['error'] ?? 'Kayıt başarısız');
     }

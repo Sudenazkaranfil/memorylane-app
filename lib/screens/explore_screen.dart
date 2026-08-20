@@ -6,6 +6,8 @@ import '../models/journal.dart';
 import '../models/entry.dart';
 import '../services/journal_service.dart';
 import '../services/entry_service.dart';
+import '../services/user_service.dart';
+import 'user_profile_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -16,7 +18,9 @@ class ExploreScreen extends StatefulWidget {
 
 class _ExploreScreenState extends State<ExploreScreen> {
   List<Journal> _journals = [];
+  List<Map<String, dynamic>> _users = [];
   bool _isLoading = true;
+  bool _isSearchingUsers = false;
   final _searchController = TextEditingController();
   String _sortBy = 'newest';
 
@@ -48,6 +52,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  Future<void> _searchUsers(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _users = [];
+        _isSearchingUsers = false;
+      });
+      return;
+    }
+    setState(() => _isSearchingUsers = true);
+    try {
+      final users = await UserService.searchUsers(query);
+      setState(() => _users = users);
+    } catch (e) {
+      setState(() => _users = []);
+    } finally {
+      setState(() => _isSearchingUsers = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -59,36 +82,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Keşfet',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-                ),
+                const Text('Keşfet', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
                 const SizedBox(height: 4),
-                Text(
-                  'Gezginlerin hikayelerini keşfet',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                ),
+                Text('Gezginlerin hikayelerini keşfet', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _searchController,
-                  onChanged: (value) => _loadJournals(search: value),
+                  onChanged: (value) {
+                    _loadJournals(search: value);
+                    _searchUsers(value);
+                  },
                   decoration: InputDecoration(
-                    hintText: 'Ajanda ara...',
+                    hintText: 'Ajanda veya kullanıcı ara...',
                     hintStyle: TextStyle(color: AppTheme.textSecondary),
                     filled: true,
                     fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppTheme.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppTheme.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppTheme.terracotta),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.terracotta)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
@@ -97,6 +108,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       onPressed: () {
                         _searchController.clear();
                         _loadJournals();
+                        setState(() => _users = []);
                       },
                     )
                         : null,
@@ -111,14 +123,62 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       const SizedBox(width: 8),
                       _buildFilterChip('En popüler', 'popular'),
                       const SizedBox(width: 8),
-                      _buildFilterChip('En çok sayfa', 'most_pages'),
+                      _buildFilterChip('En çok görüntülenen', 'most_views'),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          if (_users.isNotEmpty)
+            Container(
+              height: 90,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: _users.length,
+                itemBuilder: (context, index) {
+                  final user = _users[index];
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => UserProfileScreen(username: user['username'])),
+                    ),
+                    child: Container(
+                      width: 72,
+                      margin: const EdgeInsets.only(right: 12),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: AppTheme.terracottaLight,
+                              borderRadius: BorderRadius.circular(26),
+                            ),
+                            child: user['profileImageUrl'] != null
+                                ? ClipRRect(
+                              borderRadius: BorderRadius.circular(26),
+                              child: Image.network(user['profileImageUrl'], fit: BoxFit.cover),
+                            )
+                                : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 24),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '@${user['username']}',
+                            style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
@@ -138,10 +198,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
                   if (_searchController.text.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      'Farklı bir arama dene',
-                      style: TextStyle(fontSize: 13, color: AppTheme.textSecondary.withOpacity(0.6)),
-                    ),
+                    Text('Farklı bir arama dene', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary.withOpacity(0.6))),
                   ],
                 ],
               ),
@@ -149,9 +206,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: _journals.length,
-              itemBuilder: (context, index) {
-                return _buildJournalCard(_journals[index]);
-              },
+              itemBuilder: (context, index) => _buildJournalCard(_journals[index]),
             ),
           ),
         ],
@@ -173,14 +228,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: isSelected ? AppTheme.terracotta : AppTheme.border),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: isSelected ? Colors.white : AppTheme.textSecondary,
-          ),
-        ),
+        child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : AppTheme.textSecondary)),
       ),
     );
   }
@@ -189,9 +237,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => ExploreJournalScreen(journal: journal),
-        ),
+        MaterialPageRoute(builder: (context) => ExploreJournalScreen(journal: journal)),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -200,50 +246,122 @@ class _ExploreScreenState extends State<ExploreScreen> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.border),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppTheme.terracottaLight,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(14),
-                  bottomLeft: Radius.circular(14),
+            if (journal.coverImageUrl != null)
+              ClipRRect(
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14)),
+                child: Image.network(journal.coverImageUrl!, height: 140, width: double.infinity, fit: BoxFit.cover),
+              )
+            else
+              Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppTheme.terracottaLight,
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14)),
                 ),
+                child: const Center(child: Icon(Icons.book_outlined, color: AppTheme.terracotta, size: 40)),
               ),
-              child: const Icon(Icons.book_outlined, color: AppTheme.terracotta, size: 32),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      journal.title,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.person_outline, size: 12, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          journal.username ?? 'Gezgin',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(journal.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => UserProfileScreen(username: journal.username ?? '')),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                        child: Text('@${journal.username ?? ''}', style: TextStyle(fontSize: 12, color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.visibility_outlined, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
+                      const SizedBox(width: 4),
+                      Text('${journal.viewCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
+                      const SizedBox(width: 8),
+                      Icon(Icons.bookmark_outline, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
+                      const SizedBox(width: 4),
+                      Text('${journal.saveCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        '${journal.createdAt.day}.${journal.createdAt.month}.${journal.createdAt.year}',
+                        style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6)),
+                      ),
+                      const Spacer(),
+                      _SaveButton(journalId: journal.id),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SaveButton extends StatefulWidget {
+  final int journalId;
+  const _SaveButton({required this.journalId});
+
+  @override
+  State<_SaveButton> createState() => _SaveButtonState();
+}
+
+class _SaveButtonState extends State<_SaveButton> {
+  bool _saved = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSaved();
+  }
+
+  Future<void> _checkSaved() async {
+    try {
+      final saved = await JournalService.isSaved(widget.journalId);
+      setState(() {
+        _saved = saved;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.terracotta));
+
+    return GestureDetector(
+      onTap: () async {
+        try {
+          final saved = await JournalService.toggleSave(widget.journalId);
+          setState(() => _saved = saved);
+        } catch (e) {}
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: _saved ? AppTheme.terracotta : AppTheme.terracottaLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_saved ? Icons.bookmark : Icons.bookmark_outline, size: 14, color: _saved ? Colors.white : AppTheme.terracotta),
+            const SizedBox(width: 4),
+            Text(_saved ? 'Kaydedildi' : 'Kaydet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _saved ? Colors.white : AppTheme.terracotta)),
           ],
         ),
       ),
@@ -253,7 +371,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
 class ExploreJournalScreen extends StatefulWidget {
   final Journal journal;
-
   const ExploreJournalScreen({super.key, required this.journal});
 
   @override
@@ -271,6 +388,7 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
     super.initState();
     _pageController = PageController();
     _loadEntries();
+    JournalService.incrementView(widget.journal.id);
   }
 
   @override
@@ -303,13 +421,17 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(widget.journal.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _SaveButton(journalId: widget.journal.id),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
           : _entries.isEmpty
-          ? Center(
-        child: Text('Bu ajandada henüz sayfa yok', style: TextStyle(color: AppTheme.textSecondary)),
-      )
+          ? Center(child: Text('Bu ajandada henüz sayfa yok', style: TextStyle(color: AppTheme.textSecondary)))
           : Column(
         children: [
           Expanded(child: _buildPageView()),
@@ -413,10 +535,7 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
             ),
             Positioned(
               top: 12, right: 12,
-              child: Text(
-                '${index + 1}/${_entries.length}',
-                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6)),
-              ),
+              child: Text('${index + 1}/${_entries.length}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
             ),
           ],
         ),
@@ -429,7 +548,6 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
       final Map<String, dynamic> data = jsonDecode(canvasData);
       final elements = (data['elements'] as List?) ?? [];
       final paths = (data['paths'] as List?) ?? [];
-
       List<Widget> widgets = [];
 
       if (paths.isNotEmpty) {
@@ -445,35 +563,19 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
 
         Widget child;
         if (type == 'text') {
-          child = Container(
-            padding: const EdgeInsets.all(6),
-            constraints: const BoxConstraints(maxWidth: 120),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
-            child: Text(content ?? '', style: const TextStyle(fontSize: 9, color: AppTheme.textPrimary)),
-          );
+          child = Container(padding: const EdgeInsets.all(6), constraints: const BoxConstraints(maxWidth: 120), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)), child: Text(content ?? '', style: const TextStyle(fontSize: 9, color: AppTheme.textPrimary)));
         } else if (type == 'photo') {
-          child = Container(
-            padding: const EdgeInsets.all(4),
-            color: Colors.white,
-            child: content.startsWith('http')
-                ? Image.network(content, width: 80, height: 80, fit: BoxFit.cover)
-                : Image.file(File(content), width: 80, height: 80, fit: BoxFit.cover),
-          );
+          child = Container(padding: const EdgeInsets.all(4), color: Colors.white, child: content.startsWith('http') ? Image.network(content, width: 80, height: 80, fit: BoxFit.cover) : Image.file(File(content), width: 80, height: 80, fit: BoxFit.cover));
         } else if (type == 'sticker') {
           child = Text(content ?? '⭐', style: const TextStyle(fontSize: 20));
         } else if (type == 'location') {
-          child = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(color: AppTheme.terracotta, borderRadius: BorderRadius.circular(20)),
-            child: Text(content ?? '', style: const TextStyle(color: Colors.white, fontSize: 8)),
-          );
+          child = Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: AppTheme.terracotta, borderRadius: BorderRadius.circular(20)), child: Text(content ?? '', style: const TextStyle(color: Colors.white, fontSize: 8)));
         } else {
           child = const SizedBox();
         }
 
         widgets.add(Positioned(left: x, top: y, child: child));
       }
-
       return widgets;
     } catch (e) {
       return [];
@@ -493,17 +595,14 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
           return GestureDetector(
             onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
             child: Container(
-              width: 52,
-              height: 52,
+              width: 52, height: 52,
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 color: isSelected ? AppTheme.terracottaLight : const Color(0xFFF5F0E8),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: isSelected ? AppTheme.terracotta : AppTheme.border, width: isSelected ? 2 : 1),
               ),
-              child: Center(
-                child: Text('${index + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isSelected ? AppTheme.terracotta : AppTheme.textSecondary)),
-              ),
+              child: Center(child: Text('${index + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isSelected ? AppTheme.terracotta : AppTheme.textSecondary))),
             ),
           );
         },
@@ -541,13 +640,7 @@ class DrawingPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (final path in paths) {
       if (path.points.isEmpty) continue;
-      final paint = Paint()
-        ..color = path.color
-        ..strokeWidth = path.strokeWidth * 0.6
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke;
-
+      final paint = Paint()..color = path.color..strokeWidth = path.strokeWidth * 0.6..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round..style = PaintingStyle.stroke;
       final drawPath = Path();
       drawPath.moveTo(path.points.first.dx * 0.6, path.points.first.dy * 0.6);
       for (int i = 1; i < path.points.length; i++) {
@@ -564,13 +657,9 @@ class DrawingPainter extends CustomPainter {
 class DottedBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFD4C5B0).withOpacity(0.4)
-      ..style = PaintingStyle.fill;
-
+    final paint = Paint()..color = const Color(0xFFD4C5B0).withOpacity(0.4)..style = PaintingStyle.fill;
     const spacing = 20.0;
     const dotRadius = 1.0;
-
     for (double x = spacing; x < size.width; x += spacing) {
       for (double y = spacing; y < size.height; y += spacing) {
         canvas.drawCircle(Offset(x, y), dotRadius, paint);

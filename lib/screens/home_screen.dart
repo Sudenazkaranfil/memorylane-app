@@ -15,16 +15,25 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String? _username;
   int _selectedIndex = 0;
-  List<Journal> _journals = [];
+  List<Journal> _myJournals = [];
+  List<Journal> _savedJournals = [];
   bool _isLoading = true;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -35,9 +44,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadJournals() async {
     try {
-      final journals = await JournalService.getJournals();
+      final myJournals = await JournalService.getJournals();
+      final savedJournals = await JournalService.getSavedJournals();
       setState(() {
-        _journals = journals;
+        _myJournals = myJournals;
+        _savedJournals = savedJournals;
         _isLoading = false;
       });
     } catch (e) {
@@ -48,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _createJournal(String title, String visibility) async {
     try {
       final journal = await JournalService.createJournal(title, visibility);
-      setState(() => _journals.add(journal));
+      setState(() => _myJournals.add(journal));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -205,56 +216,209 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildJournalsTab() {
     return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _getGreeting(),
-                            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, letterSpacing: 0.5),
-                          ),
-                          Text(
-                            _username ?? 'Gezgin',
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(21)),
-                        child: const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 22),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'AJANDALARIM',
-                    style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.5),
-                  ),
-                  const SizedBox(height: 16),
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
-                      : _journals.isEmpty
-                      ? _buildEmptyState()
-                      : _buildJournalList(),
-                  const SizedBox(height: 100),
-                ],
-              ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_getGreeting(), style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, letterSpacing: 0.5)),
+                    Text(_username ?? 'Gezgin', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                  ],
+                ),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(21)),
+                  child: const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 22),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          TabBar(
+            controller: _tabController,
+            labelColor: AppTheme.terracotta,
+            unselectedLabelColor: AppTheme.textSecondary,
+            indicatorColor: AppTheme.terracotta,
+            indicatorSize: TabBarIndicatorSize.label,
+            onTap: (index) => _loadJournals(),
+            tabs: const [
+              Tab(text: 'Ajandalarım'),
+              Tab(text: 'Kaydettiklerim'),
+            ],
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
+                : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildJournalList(_myJournals, isOwn: true),
+                _buildJournalList(_savedJournals, isOwn: false),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildJournalList(List<Journal> journals, {required bool isOwn}) {
+    if (journals.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
+              child: Icon(isOwn ? Icons.book_outlined : Icons.bookmark_outline, color: AppTheme.terracotta, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text(isOwn ? 'İlk ajandanı oluştur' : 'Henüz kayıt yok', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+            const SizedBox(height: 8),
+            Text(isOwn ? 'Gezi anılarını kaydetmeye başla' : 'Keşfet\'te ajandaları kaydet', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppTheme.terracotta,
+      onRefresh: _loadJournals,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(24),
+        itemCount: journals.length,
+        itemBuilder: (context, index) {
+          final journal = journals[index];
+          return isOwn ? _buildOwnJournalCard(journal) : _buildJournalCardContent(journal, isOwn: false);
+        },
+      ),
+    );
+  }
+
+  Widget _buildOwnJournalCard(Journal journal) {
+    return Dismissible(
+      key: Key('journal_${journal.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(14)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+      ),
+      confirmDismiss: (direction) => _showDeleteConfirmDialog(),
+      onDismissed: (direction) async {
+        final journalId = journal.id;
+        final journalIndex = _myJournals.indexWhere((j) => j.id == journalId);
+        if (journalIndex != -1) {
+          final removedJournal = _myJournals[journalIndex];
+          setState(() => _myJournals.removeAt(journalIndex));
+          try {
+            await JournalService.deleteJournal(journalId);
+          } catch (e) {
+            setState(() => _myJournals.insert(journalIndex, removedJournal));
+          }
+        }
+      },
+      child: _buildJournalCardContent(journal, isOwn: true),
+    );
+  }
+
+  Widget _buildJournalCardContent(Journal journal, {required bool isOwn}) {
+    return GestureDetector(
+      onTap: () async {
+        final updated = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => JournalDetailScreen(journal: journal)),
+        );
+        if (updated == true) await _loadJournals();
+      },
+      onLongPress: isOwn ? () async {
+        final shouldDelete = await _showDeleteConfirmDialog();
+        if (shouldDelete == true) {
+          final journalId = journal.id;
+          final journalIndex = _myJournals.indexWhere((j) => j.id == journalId);
+          if (journalIndex != -1) {
+            final removedJournal = _myJournals[journalIndex];
+            setState(() => _myJournals.removeAt(journalIndex));
+            try {
+              await JournalService.deleteJournal(journalId);
+            } catch (e) {
+              setState(() => _myJournals.insert(journalIndex, removedJournal));
+            }
+          }
+        }
+      } : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), bottomLeft: Radius.circular(14)),
+              child: journal.coverImageUrl != null
+                  ? Image.network(journal.coverImageUrl!, width: 80, height: 80, fit: BoxFit.cover)
+                  : Container(
+                width: 80,
+                height: 80,
+                color: AppTheme.terracottaLight,
+                child: const Icon(Icons.book_outlined, color: AppTheme.terracotta, size: 32),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(journal.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(journal.visibility == 'PUBLIC' ? Icons.public : Icons.lock_outline, size: 12, color: AppTheme.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(journal.visibility == 'PUBLIC' ? 'Herkese açık' : 'Özel', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                        if (!isOwn) ...[
+                          const SizedBox(width: 8),
+                          Text('@${journal.username ?? ''}', style: TextStyle(fontSize: 12, color: AppTheme.terracotta)),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
+                        const SizedBox(width: 4),
+                        Text('${journal.viewCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
+                        const SizedBox(width: 8),
+                        Icon(Icons.bookmark_outline, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
+                        const SizedBox(width: 4),
+                        Text('${journal.saveCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -286,145 +450,6 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
-            child: const Icon(Icons.book_outlined, color: AppTheme.terracotta, size: 32),
-          ),
-          const SizedBox(height: 16),
-          const Text('İlk ajandanı oluştur', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          const SizedBox(height: 8),
-          Text('Gezi anılarını kaydetmeye\nhemen başla', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJournalList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _journals.length,
-      itemBuilder: (context, index) {
-        final journal = _journals[index];
-        return Dismissible(
-          key: Key('journal_${journal.id}'),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.red.shade400,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
-          ),
-          confirmDismiss: (direction) => _showDeleteConfirmDialog(),
-          onDismissed: (direction) async {
-            final journalId = journal.id;
-            final journalIndex = _journals.indexWhere((j) => j.id == journalId);
-            if (journalIndex != -1) {
-              final removedJournal = _journals[journalIndex];
-              setState(() => _journals.removeAt(journalIndex));
-              try {
-                await JournalService.deleteJournal(journalId);
-              } catch (e) {
-                setState(() => _journals.insert(journalIndex, removedJournal));
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Silinemedi, tekrar dene!')),
-                  );
-                }
-              }
-            }
-          },
-          child: GestureDetector(
-            onTap: () async {
-              final updated = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => JournalDetailScreen(journal: journal)),
-              );
-              if (updated == true) await _loadJournals();
-            },
-            onLongPress: () async {
-              final shouldDelete = await _showDeleteConfirmDialog();
-              if (shouldDelete == true) {
-                final journalId = journal.id;
-                final journalIndex = _journals.indexWhere((j) => j.id == journalId);
-                if (journalIndex != -1) {
-                  final removedJournal = _journals[journalIndex];
-                  setState(() => _journals.removeAt(journalIndex));
-                  try {
-                    await JournalService.deleteJournal(journalId);
-                  } catch (e) {
-                    setState(() => _journals.insert(journalIndex, removedJournal));
-                  }
-                }
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppTheme.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.book_outlined, color: AppTheme.terracotta),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(journal.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              journal.visibility == 'PUBLIC' ? Icons.public : Icons.lock_outline,
-                              size: 12,
-                              color: AppTheme.textSecondary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              journal.visibility == 'PUBLIC' ? 'Herkese açık' : 'Özel',
-                              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 

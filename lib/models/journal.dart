@@ -5,6 +5,8 @@ class Journal {
   final String visibility;
   final DateTime createdAt;
   final String? username;
+  final int viewCount;
+  final int saveCount;
 
   Journal({
     required this.id,
@@ -13,6 +15,8 @@ class Journal {
     required this.visibility,
     required this.createdAt,
     this.username,
+    this.viewCount = 0,
+    this.saveCount = 0,
   });
 
   factory Journal.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,8 @@ class Journal {
       visibility: json['visibility'],
       createdAt: DateTime.parse(json['createdAt']),
       username: json['user']?['username'],
+      viewCount: json['viewCount'] ?? 0,
+      saveCount: json['saveCount'] ?? 0,
     );
   }
 }

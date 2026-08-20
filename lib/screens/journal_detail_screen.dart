@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../theme/app_theme.dart';
 import '../models/journal.dart';
 import '../models/entry.dart';
 import '../services/entry_service.dart';
-import 'canvas_editor_screen.dart';
 import '../services/journal_service.dart';
+import 'canvas_editor_screen.dart';
 
 class JournalDetailScreen extends StatefulWidget {
   final Journal journal;
@@ -22,11 +23,13 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   bool _isLoading = true;
   late PageController _pageController;
   int _currentPage = 0;
+  String? _coverImageUrl;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    _coverImageUrl = widget.journal.coverImageUrl;
     _loadEntries();
   }
 
@@ -45,6 +48,28 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _uploadCover() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    try {
+      final url = await JournalService.uploadCover(widget.journal.id, image.path);
+      setState(() => _coverImageUrl = url);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotoğrafı güncellendi!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotoğrafı yüklenemedi!')),
+        );
+      }
     }
   }
 
@@ -121,22 +146,31 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: AppTheme.textPrimary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          widget.journal.title,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-        ),
+        title: Text(widget.journal.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onSelected: (value) async {
+            onSelected: (value) {
               if (value == 'delete' && _entries.isNotEmpty) {
                 _showDeleteDialog(_currentPage);
               } else if (value == 'visibility') {
                 _showVisibilityDialog();
+              } else if (value == 'cover') {
+                _uploadCover();
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'cover',
+                child: Row(
+                  children: [
+                    Icon(Icons.photo_camera_outlined, color: AppTheme.textPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    const Text('Kapak Fotoğrafı Ekle'),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'visibility',
                 child: Row(
@@ -171,6 +205,17 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
           ? _buildEmptyState()
           : Column(
         children: [
+          if (_coverImageUrl != null)
+            Container(
+              height: 160,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: NetworkImage(_coverImageUrl!),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
           Expanded(child: _buildPageView()),
           _buildThumbnailList(),
         ],
@@ -222,23 +267,13 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
         ),
         if (_currentPage > 0)
           Positioned(
-            left: 8,
-            top: 0,
-            bottom: 0,
+            left: 8, top: 0, bottom: 0,
             child: Center(
               child: GestureDetector(
-                onTap: () => _pageController.previousPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                ),
+                onTap: () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
                 child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
-                  ),
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
                   child: const Icon(Icons.chevron_left, color: AppTheme.textPrimary),
                 ),
               ),
@@ -246,23 +281,13 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
           ),
         if (_currentPage < _entries.length - 1)
           Positioned(
-            right: 8,
-            top: 0,
-            bottom: 0,
+            right: 8, top: 0, bottom: 0,
             child: Center(
               child: GestureDetector(
-                onTap: () => _pageController.nextPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                ),
+                onTap: () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
                 child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
-                  ),
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
                   child: const Icon(Icons.chevron_right, color: AppTheme.textPrimary),
                 ),
               ),
@@ -278,10 +303,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CanvasEditorScreen(
-              journalId: widget.journal.id,
-              entry: entry,
-            ),
+            builder: (context) => CanvasEditorScreen(journalId: widget.journal.id, entry: entry),
           ),
         );
         _loadEntries();
@@ -292,10 +314,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
           color: const Color(0xFFFAF7F2),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppTheme.border),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(4, 0)),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -333,20 +352,15 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
                   ),
                 ),
               Positioned(
-                bottom: 12,
-                right: 12,
+                bottom: 12, right: 12,
                 child: Text(
                   entry.date != null ? '${entry.date!.day} ${_getMonth(entry.date!.month)}' : '',
                   style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6)),
                 ),
               ),
               Positioned(
-                top: 12,
-                right: 12,
-                child: Text(
-                  '${index + 1}/${_entries.length}',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6)),
-                ),
+                top: 12, right: 12,
+                child: Text('${index + 1}/${_entries.length}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
               ),
             ],
           ),
@@ -365,11 +379,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
 
       if (paths.isNotEmpty) {
         final drawingPaths = paths.map((p) => DrawingPath.fromJson(p)).toList();
-        widgets.add(
-          Positioned.fill(
-            child: CustomPaint(painter: DrawingPainter(drawingPaths)),
-          ),
-        );
+        widgets.add(Positioned.fill(child: CustomPaint(painter: DrawingPainter(drawingPaths))));
       }
 
       for (final e in elements) {
@@ -426,33 +436,18 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
         itemBuilder: (context, index) {
           final isSelected = index == _currentPage;
           return GestureDetector(
-            onTap: () => _pageController.animateToPage(
-              index,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            ),
+            onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
             onLongPress: () => _showDeleteDialog(index),
             child: Container(
-              width: 52,
-              height: 52,
+              width: 52, height: 52,
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 color: isSelected ? AppTheme.terracottaLight : const Color(0xFFF5F0E8),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isSelected ? AppTheme.terracotta : AppTheme.border,
-                  width: isSelected ? 2 : 1,
-                ),
+                border: Border.all(color: isSelected ? AppTheme.terracotta : AppTheme.border, width: isSelected ? 2 : 1),
               ),
               child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? AppTheme.terracotta : AppTheme.textSecondary,
-                  ),
-                ),
+                child: Text('${index + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isSelected ? AppTheme.terracotta : AppTheme.textSecondary)),
               ),
             ),
           );

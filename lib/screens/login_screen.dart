@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import 'verify_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,13 +36,21 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      final error = e.toString().replaceAll('Exception: ', '');
+      if (error == 'EMAIL_NOT_VERIFIED') {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerifyScreen(email: _emailController.text.trim()),
+            ),
+          );
+        }
+      } else {
+        setState(() => _errorMessage = error);
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -70,98 +80,63 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppTheme.terracottaLight,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(
-                    Icons.book_outlined,
-                    color: AppTheme.terracotta,
-                    size: 32,
-                  ),
+                  child: Image.asset('assets/images/logo.png', width: 64, height: 64),
                 ),
               ),
               const SizedBox(height: 20),
               const Center(
                 child: Text(
                   'MemoryLane',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textPrimary,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
                 ),
               ),
               const SizedBox(height: 8),
               Center(
                 child: Text(
-                  'your journey, your story',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
+                  'senin yolculuğun, senin hikayen',
+                  style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
                 ),
               ),
               const SizedBox(height: 56),
               Text(
-                'EMAIL',
-                style: AppTheme.caption.copyWith(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                ),
+                'E-POSTA VEYA KULLANICI ADI',
+                style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: 'you@example.com',
+                  hintText: 'E-posta veya kullanıcı adı',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   filled: true,
                   fillColor: AppTheme.terracottaLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                'PASSWORD',
-                style: AppTheme.caption.copyWith(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                ),
+                'ŞİFRE',
+                style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
-                  hintText: '••••••••',
+                  hintText: 'Şifreniz',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   filled: true,
                   fillColor: AppTheme.terracottaLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                      _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                       color: AppTheme.textSecondary,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
               ),
@@ -169,24 +144,14 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'Forgot password?',
-                    style: TextStyle(
-                      color: AppTheme.terracotta,
-                      fontSize: 14,
-                    ),
-                  ),
+                  onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+                  child: Text('Şifreni mi unuttun?', style: TextStyle(color: AppTheme.terracotta, fontSize: 14)),
                 ),
               ),
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14), textAlign: TextAlign.center),
                 ),
               const SizedBox(height: 8),
               SizedBox(
@@ -197,70 +162,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.terracotta,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                    'Sign in',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: AppTheme.border)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'or',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ),
-                  Expanded(child: Divider(color: AppTheme.border)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.g_mobiledata, size: 24),
-                  label: const Text('Continue with Google'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.textPrimary,
-                    side: BorderSide(color: AppTheme.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                      : const Text('Giriş Yap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                 ),
               ),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    "Don't have an account? ",
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  ),
+                  Text('Hesabın yok mu? ', style: TextStyle(color: AppTheme.textSecondary)),
                   TextButton(
                     onPressed: () => Navigator.pushNamed(context, '/register'),
-                    child: Text(
-                      'Sign up',
-                      style: TextStyle(
-                        color: AppTheme.terracotta,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    child: Text('Kayıt Ol', style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
                   ),
                 ],
               ),

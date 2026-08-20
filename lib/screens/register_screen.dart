@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import 'verify_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -37,11 +38,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-      await StorageService.saveUsername(_usernameController.text.trim());
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kayıt başarılı! Giriş yapabilirsiniz.')),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VerifyScreen(email: _emailController.text.trim()),
+          ),
         );
       }
     } catch (e) {
@@ -50,6 +52,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
     } finally {
       setState(() => _isLoading = false);
+    }
+
+    try {
+      print('Kayıt başlıyor...');
+      await AuthService.register(
+        _usernameController.text.trim(),
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      print('Kayıt başarılı, verify ekranına gidiliyor...');
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VerifyScreen(email: _emailController.text.trim()),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Hata: $e');
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
     }
   }
 
@@ -78,22 +103,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 color: AppTheme.textPrimary,
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Create account',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-              ),
+              const Text('Hesap Oluştur', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
               const SizedBox(height: 8),
-              Text(
-                'Start your travel journal today',
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-              ),
+              Text('Seyahat ajandana bugün başla', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
               const SizedBox(height: 40),
-              Text('USERNAME', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
+              Text('KULLANICI ADI', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
               const SizedBox(height: 8),
               TextField(
                 controller: _usernameController,
                 decoration: InputDecoration(
-                  hintText: 'yourname',
+                  hintText: 'Kullanıcı adınız',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   filled: true,
                   fillColor: AppTheme.terracottaLight,
@@ -102,13 +121,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('EMAIL', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
+              Text('E-POSTA', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
               const SizedBox(height: 8),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: 'you@example.com',
+                  hintText: 'E-posta adresiniz',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   filled: true,
                   fillColor: AppTheme.terracottaLight,
@@ -117,13 +136,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('PASSWORD', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
+              Text('ŞİFRE', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
-                  hintText: '••••••••',
+                  hintText: 'Şifreniz',
                   hintStyle: TextStyle(color: AppTheme.textSecondary),
                   filled: true,
                   fillColor: AppTheme.terracottaLight,
@@ -142,11 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14), textAlign: TextAlign.center),
                 ),
               SizedBox(
                 width: double.infinity,
@@ -161,17 +176,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Create account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                      : const Text('Hesap Oluştur', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                 ),
               ),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Already have an account? ', style: TextStyle(color: AppTheme.textSecondary)),
+                  Text('Zaten hesabın var mı? ', style: TextStyle(color: AppTheme.textSecondary)),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text('Sign in', style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
+                    child: Text('Giriş Yap', style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
                   ),
                 ],
               ),

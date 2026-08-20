@@ -53,11 +53,7 @@ class _SplashScreenState extends State<SplashScreen>
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
-                  Icons.book_outlined,
-                  color: Colors.white,
-                  size: 40,
-                ),
+                child: Image.asset('assets/images/logo.png', width: 80, height: 80)
               ),
               const SizedBox(height: 24),
               const Text(
@@ -71,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'your journey, your story',
+                'senin yolculuğun, senin hikayen',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withOpacity(0.8),
