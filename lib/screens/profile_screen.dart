@@ -26,7 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _followingCount = 0;
   bool _isLoading = true;
 
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
   @override
   void initState() {

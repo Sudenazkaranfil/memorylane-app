@@ -18,7 +18,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
   @override
   void dispose() {

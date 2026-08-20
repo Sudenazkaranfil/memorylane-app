@@ -4,7 +4,7 @@ import '../models/entry.dart';
 import 'storage_service.dart';
 
 class EntryService {
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
   static Future<List<Entry>> getEntries(int journalId) async {
     final token = await StorageService.getToken();

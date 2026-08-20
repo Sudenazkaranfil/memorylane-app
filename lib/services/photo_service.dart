@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'storage_service.dart';
 
 class PhotoService {
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
   static Future<String> uploadPhoto(String filePath, int entryId) async {
     final token = await StorageService.getToken();
