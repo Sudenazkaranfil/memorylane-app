@@ -7,6 +7,8 @@ import 'journal_detail_screen.dart';
 import 'profile_screen.dart';
 import 'explore_screen.dart';
 import 'map_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String? _username;
+  String? _profileImageUrl;
   int _selectedIndex = 0;
   List<Journal> _myJournals = [];
   List<Journal> _savedJournals = [];
@@ -38,7 +41,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Future<void> _loadData() async {
     final username = await StorageService.getUsername();
+    final token = await StorageService.getToken();
     setState(() => _username = username ?? 'Gezgin');
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://memorylane-wk1y.onrender.com/auth/profile'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() => _profileImageUrl = data['profileImageUrl']);
+      }
+    } catch (e) {}
+
     await _loadJournals();
   }
 
@@ -230,11 +246,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     Text(_username ?? 'Gezgin', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
                   ],
                 ),
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(21)),
-                  child: const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 22),
+                GestureDetector(
+                  onTap: () => setState(() => _selectedIndex = 3),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.terracottaLight,
+                      borderRadius: BorderRadius.circular(21),
+                    ),
+                    child: _profileImageUrl != null
+                        ? ClipRRect(
+                      borderRadius: BorderRadius.circular(21),
+                      child: Image.network(
+                        _profileImageUrl!,
+                        fit: BoxFit.cover,
+                        width: 42,
+                        height: 42,
+                      ),
+                    )
+                        : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 22),
+                  ),
                 ),
               ],
             ),

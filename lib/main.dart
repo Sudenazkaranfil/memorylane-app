@@ -6,6 +6,7 @@ import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/privacy_policy_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/privacy': (context) => const PrivacyPolicyScreen(),
       },
     );
   }

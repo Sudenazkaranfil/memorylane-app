@@ -36,21 +36,13 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
-      final error = e.toString().replaceAll('Exception: ', '');
-      if (error == 'EMAIL_NOT_VERIFIED') {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => VerifyScreen(email: _emailController.text.trim()),
-            ),
-          );
-        }
-      } else {
-        setState(() => _errorMessage = error);
-      }
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
     } finally {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 

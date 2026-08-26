@@ -59,6 +59,15 @@ class HelpScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          _buildSection('Yasal', [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Gizlilik Politikası', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+              trailing: const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+              onTap: () => Navigator.pushNamed(context, '/privacy'),
+            ),
+          ]),
           const SizedBox(height: 32),
         ],
       ),

@@ -6,6 +6,8 @@ import 'dart:convert';
 import '../theme/app_theme.dart';
 import '../models/entry.dart';
 import '../services/entry_service.dart';
+import '../services/photo_service.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 class CanvasEditorScreen extends StatefulWidget {
   final int journalId;
@@ -24,6 +26,7 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
   double _drawingSize = 3.0;
   List<DrawingPath> _drawingPaths = [];
   DrawingPath? _currentPath;
+  double _lastRotation = 0;
 
   @override
   void initState() {
@@ -93,26 +96,52 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
       final locationElement = _elements.where((e) => e.type == ElementType.location).firstOrNull;
       final textElement = _elements.where((e) => e.type == ElementType.text).firstOrNull;
 
-      final canvasData = jsonEncode({
-        'elements': _elements.map((e) => e.toJson()).toList(),
-        'paths': _drawingPaths.map((p) => p.toJson()).toList(),
-      });
-
       final entryData = {
         'textContent': textElement?.content,
         'locationName': locationElement?.content,
         'lat': locationElement?.lat,
         'lng': locationElement?.lng,
         'date': DateTime.now().toIso8601String().split('T')[0],
-        'canvasData': canvasData,
       };
-      print('Location: ${locationElement?.content}, lat: ${locationElement?.lat}, lng: ${locationElement?.lng}');
 
+      // Önce entry oluştur
+      Entry entry;
       if (widget.entry != null) {
-        await EntryService.updateEntry(widget.journalId, widget.entry!.id, entryData);
+        entry = await EntryService.updateEntry(widget.journalId, widget.entry!.id, entryData);
       } else {
-        await EntryService.createEntry(widget.journalId, entryData);
+        entry = await EntryService.createEntry(widget.journalId, entryData);
       }
+
+      // Fotoğrafları Cloudinary'e yükle
+      for (var element in _elements) {
+        if (element.type == ElementType.photo &&
+            element.content != null &&
+            !element.content!.startsWith('http')) {
+          try {
+            final url = await PhotoService.uploadPhoto(element.content!, entry.id);
+            element.content = url;
+          } catch (e) {
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fotoğraf yüklenemedi, tekrar dene!')),
+              );
+            }
+            return;
+          }
+        }
+      }
+
+      // Canvas verisini kaydet
+      final canvasData = jsonEncode({
+        'elements': _elements.map((e) => e.toJson()).toList(),
+        'paths': _drawingPaths.map((p) => p.toJson()).toList(),
+      });
+
+      await EntryService.updateEntry(widget.journalId, entry.id, {
+        ...entryData,
+        'canvasData': canvasData,
+      });
 
       if (mounted) {
         Navigator.pop(context);
@@ -130,9 +159,37 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
   Future<void> _addPhoto() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+    if (image == null) return;
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      aspectRatioPresets: [
+        CropAspectRatioPreset.square,
+        CropAspectRatioPreset.ratio3x2,
+        CropAspectRatioPreset.original,
+        CropAspectRatioPreset.ratio4x3,
+        CropAspectRatioPreset.ratio16x9,
+      ],
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Fotoğrafı Kırp',
+          toolbarColor: AppTheme.terracotta,
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: AppTheme.terracotta,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
       setState(() {
-        _elements.add(CanvasElement(type: ElementType.photo, content: image.path, x: 50, y: 100));
+        _elements.add(CanvasElement(
+          type: ElementType.photo,
+          content: croppedFile.path,
+          x: 50,
+          y: 100,
+        ));
       });
     }
   }
@@ -592,9 +649,31 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
             element.y += details.delta.dy;
           });
         },
+        onScaleUpdate: _isDrawingMode ? null : (details) {
+          setState(() {
+            if (details.scale != 1.0) {
+              element.scale = (element.scale * details.scale).clamp(0.3, 5.0);
+            }
+            if (details.pointerCount > 1) {
+              element.rotation += details.rotation - _lastRotation;
+              _lastRotation = details.rotation;
+            }
+            element.x += details.focalPointDelta.dx;
+            element.y += details.focalPointDelta.dy;
+          });
+        },
+        onScaleStart: _isDrawingMode ? null : (details) {
+          _lastRotation = 0;
+        },
+        onScaleEnd: _isDrawingMode ? null : (details) {
+          _lastRotation = 0;
+        },
         child: Transform.rotate(
           angle: element.rotation,
-          child: _buildElementContent(element),
+          child: Transform.scale(
+            scale: element.scale,
+            child: _buildElementContent(element),
+          ),
         ),
       ),
     );

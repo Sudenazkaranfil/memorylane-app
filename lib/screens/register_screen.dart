@@ -39,11 +39,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _passwordController.text,
       );
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VerifyScreen(email: _emailController.text.trim()),
-          ),
+        Navigator.pushReplacementNamed(context, '/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kayıt başarılı! Giriş yapabilirsiniz.')),
         );
       }
     } catch (e) {
@@ -52,29 +50,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
     } finally {
       setState(() => _isLoading = false);
-    }
-
-    try {
-      print('Kayıt başlıyor...');
-      await AuthService.register(
-        _usernameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-      print('Kayıt başarılı, verify ekranına gidiliyor...');
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VerifyScreen(email: _emailController.text.trim()),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Hata: $e');
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
     }
   }
 

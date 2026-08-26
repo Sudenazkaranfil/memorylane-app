@@ -239,6 +239,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpScreen()));
           }),
           _buildMenuDivider(),
+          _buildMenuItem(Icons.privacy_tip_outlined, 'Gizlilik Politikası', () {
+            Navigator.pushNamed(context, '/privacy');
+          }),
+          _buildMenuDivider(),
           _buildMenuItem(Icons.logout, 'Çıkış Yap', _logout, isDestructive: true),
         ],
       ),

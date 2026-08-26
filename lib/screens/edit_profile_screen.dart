@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -57,8 +58,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _localImagePath = image.path);
+    if (image == null) return;
+
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      aspectRatioPresets: [
+        CropAspectRatioPreset.square,
+      ],
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Profil Fotoğrafı',
+          toolbarColor: AppTheme.terracotta,
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: AppTheme.terracotta,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      setState(() => _localImagePath = croppedFile.path);
     }
   }
 
