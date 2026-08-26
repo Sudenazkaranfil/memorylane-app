@@ -163,20 +163,12 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
 
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: image.path,
-      aspectRatioPresets: [
-        CropAspectRatioPreset.square,
-        CropAspectRatioPreset.ratio3x2,
-        CropAspectRatioPreset.original,
-        CropAspectRatioPreset.ratio4x3,
-        CropAspectRatioPreset.ratio16x9,
-      ],
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Fotoğrafı Kırp',
           toolbarColor: AppTheme.terracotta,
           toolbarWidgetColor: Colors.white,
           activeControlsWidgetColor: AppTheme.terracotta,
-          initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,
         ),
       ],

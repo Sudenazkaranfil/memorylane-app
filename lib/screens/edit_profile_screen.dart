@@ -62,16 +62,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: image.path,
-      aspectRatioPresets: [
-        CropAspectRatioPreset.square,
-      ],
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Profil Fotoğrafı',
           toolbarColor: AppTheme.terracotta,
           toolbarWidgetColor: Colors.white,
           activeControlsWidgetColor: AppTheme.terracotta,
-          initAspectRatio: CropAspectRatioPreset.square,
           lockAspectRatio: true,
         ),
       ],
