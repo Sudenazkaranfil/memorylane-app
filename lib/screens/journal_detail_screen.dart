@@ -8,10 +8,17 @@ import '../models/entry.dart';
 import '../services/entry_service.dart';
 import '../services/journal_service.dart';
 import 'canvas_editor_screen.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/rendering.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/error_view.dart';
 
 class JournalDetailScreen extends StatefulWidget {
   final Journal journal;
-
   const JournalDetailScreen({super.key, required this.journal});
 
   @override
@@ -24,6 +31,9 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   late PageController _pageController;
   int _currentPage = 0;
   String? _coverImageUrl;
+  final GlobalKey _pageKey = GlobalKey();
+  bool _isPremium = false;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -39,15 +49,26 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadEntries() async {
+  Future<void> _loadEntries({bool keepPosition = false}) async {
+    final currentIndex = keepPosition ? _currentPage : 0;
     try {
       final entries = await EntryService.getEntries(widget.journal.id);
       setState(() {
         _entries = entries;
         _isLoading = false;
       });
+      if (keepPosition && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients && currentIndex < entries.length) {
+            _pageController.jumpToPage(currentIndex);
+          }
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
     }
   }
 
@@ -55,21 +76,14 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
-
     try {
       final url = await JournalService.uploadCover(widget.journal.id, image.path);
       setState(() => _coverImageUrl = url);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kapak fotoğrafı güncellendi!')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotoğrafı güncellendi!')));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kapak fotoğrafı yüklenemedi!')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotoğrafı yüklenemedi!')));
     }
   }
 
@@ -78,23 +92,30 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Sayfayı sil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        content: Text('Bu sayfa kalıcı olarak silinecek.', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Sayfayı sil',
+            style: GoogleFonts.playfairDisplay(
+                fontSize: 18, fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary)),
+        content: Text('Bu sayfa ve içerisindeki anılar kalıcı olarak silinecek.',
+            style: AppTheme.sansBody(size: 14, color: AppTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal',
+                style: AppTheme.sansBody(
+                    color: AppTheme.textSecondary, weight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Sil'),
+                backgroundColor: Colors.red.shade400,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14))),
+            child: const Text('Sil',
+                style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -117,347 +138,867 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   }
 
   void _showVisibilityDialog() async {
-    final newVisibility = widget.journal.visibility == 'PUBLIC' ? 'PRIVATE' : 'PUBLIC';
+    final newVisibility =
+    widget.journal.visibility == 'PUBLIC' ? 'PRIVATE' : 'PUBLIC';
     try {
-      await JournalService.updateJournal(widget.journal.id, widget.journal.title, newVisibility);
+      await JournalService.updateJournal(
+          widget.journal.id, widget.journal.title, newVisibility);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(newVisibility == 'PUBLIC' ? 'Ajanda herkese açık yapıldı' : 'Ajanda özel yapıldı')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(newVisibility == 'PUBLIC'
+                ? 'Ajanda herkese açık yapıldı 🌍'
+                : 'Ajanda gizliye alındı 🔒')));
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Güncellenemedi, tekrar dene!')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Güncellenemedi, tekrar dene!')));
     }
+  }
+
+  Color _getBackgroundColor(String? canvasData) {
+    if (canvasData == null) return const Color(0xFFFAF7F2);
+    try {
+      final data = jsonDecode(canvasData);
+      final bg = data['backgroundColor'];
+      if (bg != null) return Color(bg);
+    } catch (e) {}
+    return const Color(0xFFFAF7F2);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(widget.journal.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            onSelected: (value) {
-              if (value == 'delete' && _entries.isNotEmpty) {
-                _showDeleteDialog(_currentPage);
-              } else if (value == 'visibility') {
-                _showVisibilityDialog();
-              } else if (value == 'cover') {
-                _uploadCover();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'cover',
-                child: Row(
-                  children: [
-                    Icon(Icons.photo_camera_outlined, color: AppTheme.textPrimary, size: 20),
-                    const SizedBox(width: 8),
-                    const Text('Kapak Fotoğrafı Ekle'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'visibility',
-                child: Row(
-                  children: [
-                    Icon(
-                      widget.journal.visibility == 'PUBLIC' ? Icons.lock_outline : Icons.public,
-                      color: AppTheme.textPrimary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(widget.journal.visibility == 'PUBLIC' ? 'Özel yap' : 'Herkese aç'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                    SizedBox(width: 8),
-                    Text('Sayfayı sil', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
+      resizeToAvoidBottomInset: false,
+      body: Stack(children: [
+        Column(children: [
+          _buildCurvedHeader(),
+          Expanded(
+            child: _isLoading
+                ? const JournalDetailSkeletonLoader()
+                : _hasError
+                ? ErrorView(onRetry: _loadEntries)
+                : _entries.isEmpty
+                ? _buildEmptyState()
+                : _buildPageView(),
           ),
-        ],
+        ]),
+        if (!_isLoading && _entries.isNotEmpty)
+          _buildFloatingThumbnailDock(),
+      ]),
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 74),
+        child: FloatingActionButton(
+          onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(
+                builder: (context) =>
+                    CanvasEditorScreen(journalId: widget.journal.id)));
+            _loadEntries(keepPosition: true);
+          },
+          backgroundColor: AppTheme.terracotta,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: const Icon(Icons.add, color: Colors.white, size: 24),
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
-          : _entries.isEmpty
-          ? _buildEmptyState()
-          : Column(
-        children: [
-          if (_coverImageUrl != null)
-            Container(
-              height: 160,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: NetworkImage(_coverImageUrl!),
-                  fit: BoxFit.cover,
+    );
+  }
+
+  Widget _buildCurvedHeader() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.navDark,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+        boxShadow: [BoxShadow(
+            color: AppTheme.navDark.withOpacity(0.35),
+            blurRadius: 18, offset: const Offset(0, 8))],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 12, 16),
+          child: Row(children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white, size: 19),
+              onPressed: () => Navigator.pop(context),
+            ),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Flexible(
+                        child: Text(widget.journal.title,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.playfairDisplay(
+                                fontSize: 17, fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: widget.journal.visibility == 'PUBLIC'
+                              ? const Color(0xFF10B981).withOpacity(0.2)
+                              : AppTheme.terracotta.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: widget.journal.visibility == 'PUBLIC'
+                                ? const Color(0xFF10B981).withOpacity(0.4)
+                                : AppTheme.terracotta.withOpacity(0.4),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          widget.journal.visibility == 'PUBLIC' ? 'Açık' : 'Özel',
+                          style: TextStyle(
+                              fontSize: 9, fontWeight: FontWeight.w700,
+                              color: widget.journal.visibility == 'PUBLIC'
+                                  ? const Color(0xFFBBEECE)
+                                  : const Color(0xFFFFDCBF)),
+                        ),
+                      ),
+                    ]),
+                    Text('${_entries.length} Anı Sayfası',
+                        style: AppTheme.sansBody(
+                            size: 11, color: Colors.white.withOpacity(0.6))),
+                  ]),
+            ),
+            if (_coverImageUrl != null)
+              GestureDetector(
+                onTap: _uploadCover,
+                child: Container(
+                  width: 36, height: 36,
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppTheme.terracotta, width: 1.5),
+                    image: DecorationImage(
+                        image: NetworkImage(_coverImageUrl!),
+                        fit: BoxFit.cover),
+                  ),
                 ),
               ),
+            IconButton(
+              icon: const Icon(Icons.share_outlined,
+                  color: Colors.white, size: 20),
+              onPressed: _showShareOptions,
             ),
-          Expanded(child: _buildPageView()),
-          _buildThumbnailList(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CanvasEditorScreen(journalId: widget.journal.id),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              color: Colors.white,
+              onSelected: (value) {
+                if (value == 'delete' && _entries.isNotEmpty) {
+                  _showDeleteDialog(_currentPage);
+                } else if (value == 'visibility') {
+                  _showVisibilityDialog();
+                } else if (value == 'cover') {
+                  _uploadCover();
+                } else if (value == 'share') {
+                  _showShareOptions();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'share', child: Row(children: [
+                  Icon(Icons.share_outlined, color: AppTheme.textPrimary, size: 18),
+                  const SizedBox(width: 10),
+                  Text('Hikaye Paylaş', style: AppTheme.sansBody()),
+                ])),
+                PopupMenuItem(value: 'cover', child: Row(children: [
+                  Icon(Icons.photo_camera_outlined,
+                      color: AppTheme.textPrimary, size: 18),
+                  const SizedBox(width: 10),
+                  Text('Kapak Fotoğrafı', style: AppTheme.sansBody()),
+                ])),
+                PopupMenuItem(value: 'visibility', child: Row(children: [
+                  Icon(
+                      widget.journal.visibility == 'PUBLIC'
+                          ? Icons.lock_outline : Icons.public,
+                      color: AppTheme.textPrimary, size: 18),
+                  const SizedBox(width: 10),
+                  Text(widget.journal.visibility == 'PUBLIC'
+                      ? 'Özel yap' : 'Herkese aç',
+                      style: AppTheme.sansBody()),
+                ])),
+                PopupMenuItem(value: 'delete', child: Row(children: [
+                  Icon(Icons.delete_outline, color: Colors.red.shade400, size: 18),
+                  const SizedBox(width: 10),
+                  Text('Sayfayı sil',
+                      style: AppTheme.sansBody(color: Colors.red.shade400)),
+                ])),
+              ],
             ),
-          );
-          _loadEntries();
-        },
-        backgroundColor: AppTheme.terracotta,
-        child: const Icon(Icons.add, color: Colors.white),
+          ]),
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(40)),
-            child: const Icon(Icons.edit_outlined, color: AppTheme.terracotta, size: 40),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 76, height: 76,
+          decoration: BoxDecoration(
+            color: AppTheme.navDark,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: const [BoxShadow(
+                color: Color(0x14000000), blurRadius: 16,
+                offset: Offset(0, 4))],
           ),
-          const SizedBox(height: 20),
-          const Text('İlk sayfanı ekle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          const SizedBox(height: 8),
-          Text('Sağ alttaki + butonuna bas', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
-        ],
-      ),
+          child: const Icon(Icons.edit_note_rounded,
+              color: Colors.white, size: 38),
+        ),
+        const SizedBox(height: 18),
+        Text('İlk sayfanı ekle',
+            style: GoogleFonts.playfairDisplay(
+                fontSize: 20, fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary)),
+        const SizedBox(height: 6),
+        Text('Sağ alttaki + butonuna tıkla',
+            style: AppTheme.sansBody(size: 13, color: AppTheme.textSecondary)),
+      ]),
     );
   }
 
   Widget _buildPageView() {
-    return Stack(
-      children: [
-        PageView.builder(
-          controller: _pageController,
-          onPageChanged: (index) => setState(() => _currentPage = index),
-          itemCount: _entries.length,
-          itemBuilder: (context, index) => _buildPage(_entries[index], index),
+    return Stack(children: [
+      PageView.builder(
+        controller: _pageController,
+        onPageChanged: (index) => setState(() => _currentPage = index),
+        itemCount: _entries.length,
+        itemBuilder: (context, index) => _buildPage(_entries[index], index),
+      ),
+      if (_currentPage > 0)
+        Positioned(
+          left: 8, top: 0, bottom: 60,
+          child: Center(
+            child: GestureDetector(
+              onTap: () => _pageController.previousPage(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeInOutCubic),
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: AppTheme.navDark.withOpacity(0.75),
+                  borderRadius: BorderRadius.circular(17),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+                ),
+                child: const Icon(Icons.chevron_left,
+                    color: Colors.white, size: 20),
+              ),
+            ),
+          ),
         ),
-        if (_currentPage > 0)
-          Positioned(
-            left: 8, top: 0, bottom: 0,
-            child: Center(
-              child: GestureDetector(
-                onTap: () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
-                  child: const Icon(Icons.chevron_left, color: AppTheme.textPrimary),
+      if (_currentPage < _entries.length - 1)
+        Positioned(
+          right: 8, top: 0, bottom: 60,
+          child: Center(
+            child: GestureDetector(
+              onTap: () => _pageController.nextPage(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeInOutCubic),
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: AppTheme.navDark.withOpacity(0.75),
+                  borderRadius: BorderRadius.circular(17),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.2), blurRadius: 8)],
                 ),
+                child: const Icon(Icons.chevron_right,
+                    color: Colors.white, size: 20),
               ),
             ),
           ),
-        if (_currentPage < _entries.length - 1)
-          Positioned(
-            right: 8, top: 0, bottom: 0,
-            child: Center(
-              child: GestureDetector(
-                onTap: () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
-                  child: const Icon(Icons.chevron_right, color: AppTheme.textPrimary),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
+        ),
+    ]);
   }
 
   Widget _buildPage(Entry entry, int index) {
     return GestureDetector(
       onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CanvasEditorScreen(journalId: widget.journal.id, entry: entry),
-          ),
-        );
-        _loadEntries();
+        final currentIndex = _currentPage;
+        await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => CanvasEditorScreen(
+                journalId: widget.journal.id, entry: entry)));
+        await _loadEntries(keepPosition: true);
+        if (mounted) {
+          setState(() => _currentPage = currentIndex);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_pageController.hasClients) {
+              _pageController.jumpToPage(currentIndex);
+            }
+          });
+        }
       },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(40, 16, 40, 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFAF7F2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              CustomPaint(painter: DottedBackgroundPainter(), size: Size.infinite),
-              if (entry.canvasData != null)
-                ..._buildCanvasPreview(entry.canvasData!)
-              else
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (entry.locationName != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: AppTheme.terracotta, borderRadius: BorderRadius.circular(20)),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.location_on, color: Colors.white, size: 14),
-                                const SizedBox(width: 4),
-                                Text(entry.locationName!, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-                              ],
-                            ),
-                          ),
-                        if (entry.textContent != null) ...[
-                          const SizedBox(height: 16),
-                          Text(entry.textContent!, style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, height: 1.6), textAlign: TextAlign.center),
-                        ],
-                      ],
+      child: RepaintBoundary(
+        key: _currentPage == index ? _pageKey : GlobalKey(),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(20, 12, 20, 72),
+          decoration: BoxDecoration(
+            color: _getBackgroundColor(entry.canvasData),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppTheme.border, width: 0.8),
+            boxShadow: [BoxShadow(
+                color: const Color(0xFF2A1D15).withOpacity(0.12),
+                blurRadius: 24, offset: const Offset(0, 10))],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final scaleX = constraints.maxWidth / 360.0;
+                final scaleY = constraints.maxHeight / 600.0;
+                final scale = scaleX < scaleY ? scaleX : scaleY;
+                return Stack(children: [
+                  CustomPaint(
+                      painter: DottedBackgroundPainter(),
+                      size: Size.infinite),
+                  // Sol cilt gölgesi
+                  Positioned(
+                    left: 0, top: 0, bottom: 0,
+                    child: Container(
+                      width: 8,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withOpacity(0.08),
+                            Colors.transparent
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              Positioned(
-                bottom: 12, right: 12,
-                child: Text(
-                  entry.date != null ? '${entry.date!.day} ${_getMonth(entry.date!.month)}' : '',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6)),
-                ),
-              ),
-              Positioned(
-                top: 12, right: 12,
-                child: Text('${index + 1}/${_entries.length}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
-              ),
-            ],
+                  if (entry.canvasData != null)
+                    ..._buildCanvasPreview(entry.canvasData!, scale)
+                  else
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (entry.locationName != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.terracotta,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [BoxShadow(
+                                        color: AppTheme.terracotta.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3))],
+                                  ),
+                                  child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.location_on,
+                                            color: Colors.white, size: 14),
+                                        const SizedBox(width: 5),
+                                        Text(entry.locationName!,
+                                            style: AppTheme.sansBody(
+                                                size: 12,
+                                                weight: FontWeight.w700,
+                                                color: Colors.white)),
+                                      ]),
+                                ),
+                              if (entry.textContent != null) ...[
+                                const SizedBox(height: 18),
+                                Text('"${entry.textContent!}"',
+                                    style: GoogleFonts.playfairDisplay(
+                                        fontSize: 15,
+                                        color: AppTheme.textPrimary,
+                                        height: 1.6,
+                                        fontStyle: FontStyle.italic),
+                                    textAlign: TextAlign.center),
+                              ],
+                            ]),
+                      ),
+                    ),
+                  Positioned(
+                    top: 14, right: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.navDark.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text('${index + 1} / ${_entries.length}',
+                          style: AppTheme.sansBody(
+                              size: 11, weight: FontWeight.w700,
+                              color: AppTheme.textSecondary)),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 12, right: 16,
+                    child: Text(
+                      entry.date != null
+                          ? '${entry.date!.day} ${_getMonth(entry.date!.month)}'
+                          : '',
+                      style: AppTheme.sansBody(
+                          size: 11, weight: FontWeight.w500,
+                          color: AppTheme.textSecondary.withOpacity(0.65)),
+                    ),
+                  ),
+                ]);
+              },
+            ),
           ),
         ),
       ),
     );
   }
 
-  List<Widget> _buildCanvasPreview(String canvasData) {
+  Widget _buildFloatingThumbnailDock() {
+    return Positioned(
+      bottom: 14 + MediaQuery.of(context).padding.bottom,
+      left: 18,
+      right: 74,
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.navDark.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: AppTheme.terracotta.withOpacity(0.3), width: 1),
+          boxShadow: [BoxShadow(
+              color: Colors.black.withOpacity(0.28),
+              blurRadius: 18, offset: const Offset(0, 6))],
+        ),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _entries.length,
+          itemBuilder: (context, index) {
+            final isSelected = index == _currentPage;
+            return GestureDetector(
+              onTap: () => _pageController.animateToPage(index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic),
+              onLongPress: () => _showDeleteDialog(index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isSelected ? 48 : 38,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppTheme.terracotta
+                      : Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.white.withOpacity(0.6)
+                        : Colors.white.withOpacity(0.12),
+                    width: isSelected ? 1.5 : 0.8,
+                  ),
+                ),
+                child: Center(
+                  child: Text('S.${index + 1}',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.6))),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sharePage() async {
+    try {
+      final boundary = _pageKey.currentContext?.findRenderObject()
+      as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+      await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      final watermarkedBytes = await _addWatermark(bytes, premium: _isPremium);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/memorylane_page.png');
+      await file.writeAsBytes(watermarkedBytes);
+      await Share.shareXFiles([XFile(file.path)],
+          text: 'MemoryLane\'da bir anım ✈️');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Paylaşılamadı!')));
+    }
+  }
+
+  Future<void> _shareStory() async {
+    try {
+      final boundary = _pageKey.currentContext?.findRenderObject()
+      as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+      await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      final storyBytes = await _convertToStoryFormat(bytes);
+      final watermarkedBytes =
+      await _addWatermark(storyBytes, premium: _isPremium, isStory: true);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/memorylane_story.png');
+      await file.writeAsBytes(watermarkedBytes);
+      await Share.shareXFiles([XFile(file.path)],
+          text: 'MemoryLane\'da bir anım ✈️');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Paylaşılamadı!')));
+    }
+  }
+
+  Future<Uint8List> _addWatermark(Uint8List bytes,
+      {bool premium = false, bool isStory = false}) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawImage(image, Offset.zero, Paint());
+    final w = image.width.toDouble();
+    final h = image.height.toDouble();
+    if (premium) {
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: 'MemoryLane',
+          style: TextStyle(color: Colors.white.withOpacity(0.6),
+              fontSize: w * 0.03, fontWeight: FontWeight.w500),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(canvas,
+          Offset(w - textPainter.width - 20, h - textPainter.height - 20));
+    } else {
+      final bannerHeight = h * 0.09;
+      final paint = Paint()..color = const Color(0xFFC4956A);
+      canvas.drawRect(
+          Rect.fromLTWH(0, h - bannerHeight, w, bannerHeight), paint);
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: '✈️  MemoryLane ile oluşturuldu',
+          style: TextStyle(color: Colors.white,
+              fontSize: w * 0.038, fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+          canvas,
+          Offset((w - textPainter.width) / 2,
+              h - bannerHeight + (bannerHeight - textPainter.height) / 2));
+    }
+    final picture = recorder.endRecording();
+    final finalImage = await picture.toImage(image.width, image.height);
+    final finalBytes =
+    await finalImage.toByteData(format: ui.ImageByteFormat.png);
+    return finalBytes!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _convertToStoryFormat(Uint8List bytes) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    final storyWidth = image.width.toDouble();
+    final storyHeight = storyWidth * 16 / 9;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final bgPaint = Paint()..color = const Color(0xFFFAF7F2);
+    canvas.drawRect(Rect.fromLTWH(0, 0, storyWidth, storyHeight), bgPaint);
+    final scale = storyWidth / image.width;
+    final scaledHeight = image.height * scale;
+    final top = (storyHeight - scaledHeight) / 2;
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Rect.fromLTWH(0, top, storyWidth, scaledHeight),
+      Paint(),
+    );
+    final picture = recorder.endRecording();
+    final finalImage =
+    await picture.toImage(storyWidth.toInt(), storyHeight.toInt());
+    final finalBytes =
+    await finalImage.toByteData(format: ui.ImageByteFormat.png);
+    return finalBytes!.buffer.asUint8List();
+  }
+
+  void _showShareOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          left: 24, right: 24, top: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 24,
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(child: Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: AppTheme.border,
+                      borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 20),
+              Text('Anıyı Paylaş',
+                  style: GoogleFonts.playfairDisplay(
+                      fontSize: 19, fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
+              const SizedBox(height: 16),
+              _buildShareOption(Icons.image_outlined, 'Sayfayı Paylaş',
+                  'Standart kare/orijinal boyut', false, _sharePage),
+              const SizedBox(height: 10),
+              _buildShareOption(Icons.phone_android_outlined,
+                  'Hikaye Olarak Paylaş', 'Instagram 9:16 formatı',
+                  false, _shareStory),
+              const SizedBox(height: 18),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(color: AppTheme.terracotta,
+                      borderRadius: BorderRadius.circular(20)),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.star_rounded, color: Colors.white, size: 12),
+                    SizedBox(width: 4),
+                    Text('PRO', style: TextStyle(color: Colors.white,
+                        fontSize: 10, fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+                Text('Özel formatlar', style: AppTheme.sansBody(
+                    size: 13, weight: FontWeight.w600,
+                    color: AppTheme.textSecondary)),
+              ]),
+              const SizedBox(height: 10),
+              _buildShareOption(Icons.star_outline, 'Watermark\'sız Paylaş',
+                  'Logosuz temiz görsel', true, () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(const SnackBar(content: Text('Yakında!')));
+                  }),
+            ]),
+      ),
+    );
+  }
+
+  Widget _buildShareOption(IconData icon, String title, String subtitle,
+      bool isPremium, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: isPremium ? const Color(0xFFF7EBE1) : const Color(0xFFFAF7F2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: isPremium
+                  ? AppTheme.terracotta.withOpacity(0.25) : AppTheme.border,
+              width: 0.8),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: isPremium ? AppTheme.terracotta : AppTheme.navDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTheme.sansBody(
+                    size: 13, weight: FontWeight.w700)),
+                Text(subtitle, style: AppTheme.sansBody(
+                    size: 11, color: AppTheme.textSecondary)),
+              ])),
+          Icon(
+              isPremium ? Icons.lock_outline : Icons.arrow_forward_ios_rounded,
+              color: isPremium ? AppTheme.terracotta : const Color(0xFF9E8E81),
+              size: 15),
+        ]),
+      ),
+    );
+  }
+
+  List<Widget> _buildCanvasPreview(String canvasData, double scale) {
     try {
       final Map<String, dynamic> data = jsonDecode(canvasData);
-      final elements = (data['elements'] as List?) ?? [];
-      final paths = (data['paths'] as List?) ?? [];
-
       List<Widget> widgets = [];
 
-      if (paths.isNotEmpty) {
-        final drawingPaths = paths.map((p) => DrawingPath.fromJson(p)).toList();
-        widgets.add(Positioned.fill(child: CustomPaint(painter: DrawingPainter(drawingPaths))));
-      }
+      if (data.containsKey('stickers') || data.containsKey('locations')) {
+        final stickers = (data['stickers'] as List?) ?? [];
+        final locations = (data['locations'] as List?) ?? [];
+        final paths = (data['paths'] as List?) ?? [];
 
-      for (final e in elements) {
-        final type = e['type'];
-        final content = e['content'];
-        final x = (e['x'] as num).toDouble() * 0.6;
-        final y = (e['y'] as num).toDouble() * 0.6;
-
-        Widget child;
-        if (type == 'text') {
-          child = Container(
-            padding: const EdgeInsets.all(6),
-            constraints: const BoxConstraints(maxWidth: 120),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
-            child: Text(content ?? '', style: const TextStyle(fontSize: 9, color: AppTheme.textPrimary)),
-          );
-        } else if (type == 'photo') {
-          child = Container(
-            padding: const EdgeInsets.all(4),
-            color: Colors.white,
-            child: content.startsWith('http')
-                ? Image.network(content, width: 80, height: 80, fit: BoxFit.cover)
-                : Image.file(File(content), width: 80, height: 80, fit: BoxFit.cover),
-          );
-        } else if (type == 'sticker') {
-          child = Text(content ?? '⭐', style: const TextStyle(fontSize: 20));
-        } else if (type == 'location') {
-          child = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(color: AppTheme.terracotta, borderRadius: BorderRadius.circular(20)),
-            child: Text(content ?? '', style: const TextStyle(color: Colors.white, fontSize: 8)),
-          );
-        } else {
-          child = const SizedBox();
+        if (paths.isNotEmpty) {
+          final drawingPaths =
+          paths.map((p) => DrawingPath.fromJson(p)).toList();
+          widgets.add(Positioned.fill(
+              child: CustomPaint(
+                  painter: DrawingPainter(drawingPaths, scale))));
         }
 
-        widgets.add(Positioned(left: x, top: y, child: child));
-      }
+        for (final s in stickers.where((s) => s['type'] == 'image')) {
+          final model = s['model'] as Map<String, dynamic>?;
+          if (model == null) continue;
+          final top = (model['top'] as num? ?? 0).toDouble() * scale;
+          final left = (model['left'] as num? ?? 0).toDouble() * scale;
+          final stickerScale = (model['scale'] as num? ?? 1.0).toDouble();
+          final angle = (model['angle'] as num? ?? 0).toDouble();
+          final url = model['url'] as String? ?? '';
+          widgets.add(Positioned(
+            left: left, top: top,
+            child: Transform.rotate(
+              angle: angle,
+              child: Transform.scale(
+                scale: stickerScale * scale,
+                alignment: Alignment.topLeft,
+                child: url.startsWith('http')
+                    ? Image.network(url, width: 160, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                    const SizedBox(width: 160))
+                    : const SizedBox(),
+              ),
+            ),
+          ));
+        }
 
+        for (final l in locations) {
+          final name = l['name'] as String? ?? '';
+          final x = (l['x'] as num? ?? 0).toDouble() * scale;
+          final y = (l['y'] as num? ?? 0).toDouble() * scale;
+          final color =
+          l['color'] != null ? Color(l['color']) : AppTheme.terracotta;
+          widgets.add(Positioned(
+            left: x, top: y,
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.topLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 6, offset: const Offset(0, 2))],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.location_on, color: Colors.white, size: 13),
+                  const SizedBox(width: 5),
+                  Text(name, style: TextStyle(
+                      color: color.computeLuminance() > 0.5
+                          ? Colors.black87 : Colors.white,
+                      fontSize: 12, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ),
+          ));
+        }
+
+        for (final s in stickers.where((s) => s['type'] != 'image')) {
+          final type = s['type'] as String;
+          final content = s['content'] as String?;
+          final model = s['model'] as Map<String, dynamic>?;
+          if (model == null) continue;
+          final top = (model['top'] as num? ?? 0).toDouble() * scale;
+          final left = (model['left'] as num? ?? 0).toDouble() * scale;
+          final stickerScale = (model['scale'] as num? ?? 1.0).toDouble();
+          final text = model['text'] as String? ?? content ?? '';
+          final textStyleData = model['textStyle'] as Map<String, dynamic>?;
+          final fontSize =
+          (textStyleData?['fontSize'] as num? ?? 14).toDouble();
+          final color = textStyleData?['color'] != null
+              ? Color(textStyleData!['color']) : AppTheme.textPrimary;
+          widgets.add(Positioned(
+            left: left, top: top,
+            child: Transform.scale(
+              scale: stickerScale * scale,
+              alignment: Alignment.topLeft,
+              child: type == 'emoji'
+                  ? Text(text, style: const TextStyle(fontSize: 46))
+                  : Text(text, style: TextStyle(
+                  fontSize: fontSize, color: color,
+                  fontWeight: FontWeight.w600)),
+            ),
+          ));
+        }
+      } else {
+        final elements = (data['elements'] as List?) ?? [];
+        final paths = (data['paths'] as List?) ?? [];
+
+        if (paths.isNotEmpty) {
+          final drawingPaths =
+          paths.map((p) => DrawingPath.fromJson(p)).toList();
+          widgets.add(Positioned.fill(
+              child: CustomPaint(
+                  painter: DrawingPainter(drawingPaths, scale))));
+        }
+
+        for (final e in elements) {
+          final type = e['type'];
+          final content = e['content'];
+          final x = (e['x'] as num).toDouble() * scale;
+          final y = (e['y'] as num).toDouble() * scale;
+          Widget child;
+          if (type == 'text') {
+            child = Container(
+                padding: const EdgeInsets.all(6),
+                constraints: BoxConstraints(maxWidth: 120 * scale),
+                decoration: BoxDecoration(color: Colors.white,
+                    borderRadius: BorderRadius.circular(6)),
+                child: Text(content ?? '',
+                    style: TextStyle(
+                        fontSize: 9 * scale,
+                        color: AppTheme.textPrimary)));
+          } else if (type == 'photo') {
+            child = content.startsWith('http')
+                ? Image.network(content,
+                width: 80 * scale, height: 80 * scale,
+                fit: BoxFit.cover)
+                : const SizedBox();
+          } else if (type == 'sticker') {
+            child = Text(content ?? '⭐',
+                style: TextStyle(fontSize: 20 * scale));
+          } else if (type == 'location') {
+            child = Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: AppTheme.terracotta,
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text(content ?? '',
+                    style: TextStyle(
+                        color: Colors.white, fontSize: 8 * scale)));
+          } else {
+            child = const SizedBox();
+          }
+          widgets.add(Positioned(left: x, top: y, child: child));
+        }
+      }
       return widgets;
     } catch (e) {
       return [];
     }
   }
 
-  Widget _buildThumbnailList() {
-    return Container(
-      height: 80,
-      color: Colors.white,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount: _entries.length,
-        itemBuilder: (context, index) {
-          final isSelected = index == _currentPage;
-          return GestureDetector(
-            onTap: () => _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-            onLongPress: () => _showDeleteDialog(index),
-            child: Container(
-              width: 52, height: 52,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? AppTheme.terracottaLight : const Color(0xFFF5F0E8),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isSelected ? AppTheme.terracotta : AppTheme.border, width: isSelected ? 2 : 1),
-              ),
-              child: Center(
-                child: Text('${index + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isSelected ? AppTheme.terracotta : AppTheme.textSecondary)),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   String _getMonth(int month) {
-    const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
     return months[month - 1];
   }
 }
@@ -467,20 +1008,25 @@ class DrawingPath {
   Color color;
   double strokeWidth;
 
-  DrawingPath({required this.points, required this.color, required this.strokeWidth});
+  DrawingPath(
+      {required this.points,
+        required this.color,
+        required this.strokeWidth});
 
-  factory DrawingPath.fromJson(Map<String, dynamic> json) {
-    return DrawingPath(
-      points: (json['points'] as List).map((p) => Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble())).toList(),
-      color: Color(json['color'] as int),
-      strokeWidth: (json['strokeWidth'] as num).toDouble(),
-    );
-  }
+  factory DrawingPath.fromJson(Map<String, dynamic> json) => DrawingPath(
+    points: (json['points'] as List)
+        .map((p) => Offset(
+        (p['x'] as num).toDouble(), (p['y'] as num).toDouble()))
+        .toList(),
+    color: Color(json['color'] as int),
+    strokeWidth: (json['strokeWidth'] as num).toDouble(),
+  );
 }
 
 class DrawingPainter extends CustomPainter {
   final List<DrawingPath> paths;
-  DrawingPainter(this.paths);
+  final double scale;
+  DrawingPainter(this.paths, [this.scale = 0.6]);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -488,15 +1034,16 @@ class DrawingPainter extends CustomPainter {
       if (path.points.isEmpty) continue;
       final paint = Paint()
         ..color = path.color
-        ..strokeWidth = path.strokeWidth * 0.6
+        ..strokeWidth = path.strokeWidth * scale
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..style = PaintingStyle.stroke;
-
       final drawPath = Path();
-      drawPath.moveTo(path.points.first.dx * 0.6, path.points.first.dy * 0.6);
+      drawPath.moveTo(
+          path.points.first.dx * scale, path.points.first.dy * scale);
       for (int i = 1; i < path.points.length; i++) {
-        drawPath.lineTo(path.points[i].dx * 0.6, path.points[i].dy * 0.6);
+        drawPath.lineTo(
+            path.points[i].dx * scale, path.points[i].dy * scale);
       }
       canvas.drawPath(drawPath, paint);
     }
@@ -510,15 +1057,12 @@ class DottedBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFD4C5B0).withOpacity(0.4)
+      ..color = const Color(0xFFD4C5B0).withOpacity(0.35)
       ..style = PaintingStyle.fill;
-
-    const spacing = 20.0;
-    const dotRadius = 1.0;
-
+    const spacing = 18.0;
     for (double x = spacing; x < size.width; x += spacing) {
       for (double y = spacing; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), dotRadius, paint);
+        canvas.drawCircle(Offset(x, y), 0.9, paint);
       }
     }
   }

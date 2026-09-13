@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import '../services/storage_service.dart';
-import 'package:image_cropper/image_cropper.dart';
+import '../widgets/error_view.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -21,9 +22,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _locationController = TextEditingController();
   final _websiteController = TextEditingController();
   final _favoriteDestinationController = TextEditingController();
-  bool _isLoading = false;
+
   String? _profileImageUrl;
   String? _localImagePath;
+  bool _isLoading = false;
+  bool _isSaving = false;
+  bool _hasError = false;
 
   static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
@@ -31,91 +35,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
-  }
-
-  Future<void> _loadProfile() async {
-    try {
-      final token = await StorageService.getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/profile'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _firstNameController.text = data['firstName'] ?? '';
-          _lastNameController.text = data['lastName'] ?? '';
-          _bioController.text = data['bio'] ?? '';
-          _locationController.text = data['location'] ?? '';
-          _websiteController.text = data['website'] ?? '';
-          _favoriteDestinationController.text = data['favoriteDestination'] ?? '';
-          _profileImageUrl = data['profileImageUrl'];
-        });
-      }
-    } catch (e) {}
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
-
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: image.path,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Profil Fotoğrafı',
-          toolbarColor: AppTheme.terracotta,
-          toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor: AppTheme.terracotta,
-          lockAspectRatio: true,
-        ),
-      ],
-    );
-
-    if (croppedFile != null) {
-      setState(() => _localImagePath = croppedFile.path);
-    }
-  }
-
-  Future<void> _save() async {
-    setState(() => _isLoading = true);
-    try {
-      final token = await StorageService.getToken();
-      String? imageUrl = _profileImageUrl;
-
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/profile'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'firstName': _firstNameController.text.trim(),
-          'lastName': _lastNameController.text.trim(),
-          'bio': _bioController.text.trim(),
-          'location': _locationController.text.trim(),
-          'website': _websiteController.text.trim(),
-          'favoriteDestination': _favoriteDestinationController.text.trim(),
-          'profileImageUrl': imageUrl,
-        }),
-      );
-
-      if (response.statusCode == 200 && mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil güncellendi!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Güncellenemedi, tekrar dene!')),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
   }
 
   @override
@@ -129,113 +48,332 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _loadProfile() async {
+    setState(() { _isLoading = true; _hasError = false; });
+    final token = await StorageService.getToken();
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/profile'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _firstNameController.text = data['firstName'] ?? '';
+          _lastNameController.text = data['lastName'] ?? '';
+          _bioController.text = data['bio'] ?? '';
+          _locationController.text = data['location'] ?? '';
+          _websiteController.text = data['website'] ?? '';
+          _favoriteDestinationController.text =
+              data['favoriteDestination'] ?? '';
+          _profileImageUrl = data['profileImageUrl'];
+        });
+      }
+    } catch (e) {
+      setState(() => _hasError = true);
+    }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 80);
+    if (image != null) setState(() => _localImagePath = image.path);
+  }
+
+  Future<String?> _uploadProfileImage(String filePath) async {
+    final token = await StorageService.getToken();
+    final request = http.MultipartRequest(
+        'POST', Uri.parse('$baseUrl/auth/profile/image'));
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body);
+      return data['profileImageUrl'];
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    final token = await StorageService.getToken();
+    try {
+      String? imageUrl = _profileImageUrl;
+      if (_localImagePath != null) {
+        imageUrl = await _uploadProfileImage(_localImagePath!);
+      }
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+        body: jsonEncode({
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'bio': _bioController.text.trim(),
+          'location': _locationController.text.trim(),
+          'website': _websiteController.text.trim(),
+          'favoriteDestination': _favoriteDestinationController.text.trim(),
+          'profileImageUrl': imageUrl,
+        }),
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            backgroundColor: AppTheme.navDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            content: const Row(children: [
+              Icon(Icons.check_circle_outline_rounded,
+                  color: AppTheme.terracotta, size: 20),
+              SizedBox(width: 10),
+              Text('Profil başarıyla güncellendi!',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ]),
+          ));
+        }
+      } else {
+        throw Exception('Güncellenemedi');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          content: const Row(children: [
+            Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 10),
+            Text('Güncellenemedi, tekrar deneyin.',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ]),
+        ));
+      }
+    }
+    setState(() => _isSaving = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Profili Düzenle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        actions: [
-          _isLoading
-              ? const Padding(
-            padding: EdgeInsets.all(16),
-            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.terracotta)),
-          )
-              : TextButton(
-            onPressed: _save,
-            child: Text('Kaydet', style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppTheme.navDark,
+            borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(28)),
+            boxShadow: [BoxShadow(
+                color: AppTheme.navDark.withOpacity(0.3),
+                blurRadius: 16, offset: const Offset(0, 6))],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: _pickImage,
-              child: Stack(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 12, 16),
+              child: Row(children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Profili Düzenle',
+                          style: GoogleFonts.playfairDisplay(
+                              fontSize: 17, fontWeight: FontWeight.w800,
+                              color: Colors.white, letterSpacing: -0.3)),
+                      Text('Gezgin Kimliği & Tercihler',
+                          style: AppTheme.sansBody(
+                              size: 11, weight: FontWeight.w600,
+                              color: AppTheme.terracotta)),
+                    ])),
+                _isSaving
+                    ? const SizedBox(width: 24, height: 24,
+                    child: CircularProgressIndicator(
+                        color: AppTheme.terracotta, strokeWidth: 2.2))
+                    : GestureDetector(
+                  onTap: _save,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppTheme.terracottaLight,
-                      borderRadius: BorderRadius.circular(50),
+                      color: AppTheme.terracotta,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [BoxShadow(
+                          color: AppTheme.terracotta.withOpacity(0.3),
+                          blurRadius: 8, offset: const Offset(0, 3))],
                     ),
-                    child: _localImagePath != null
-                        ? ClipRRect(
-                      borderRadius: BorderRadius.circular(50),
-                      child: Image.file(File(_localImagePath!), fit: BoxFit.cover),
-                    )
-                        : _profileImageUrl != null
-                        ? ClipRRect(
-                      borderRadius: BorderRadius.circular(50),
-                      child: Image.network(_profileImageUrl!, fit: BoxFit.cover),
-                    )
-                        : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 48),
+                    child: Text('Kaydet', style: AppTheme.sansBody(
+                        size: 13, weight: FontWeight.w800,
+                        color: Colors.white)),
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AppTheme.terracotta,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ]),
             ),
-            const SizedBox(height: 32),
-            _buildField('Ad', _firstNameController, 'Adınız'),
-            const SizedBox(height: 16),
-            _buildField('Soyad', _lastNameController, 'Soyadınız'),
-            const SizedBox(height: 16),
-            _buildField('Hakkında', _bioController, 'Kendinizden bahsedin...', maxLines: 3),
-            const SizedBox(height: 16),
-            _buildField('Konum', _locationController, 'İstanbul, Türkiye', prefixIcon: Icons.location_on_outlined),
-            const SizedBox(height: 16),
-            _buildField('Web Sitesi', _websiteController, 'https://...', prefixIcon: Icons.link),
-            const SizedBox(height: 16),
-            _buildField('Favori Destinasyon', _favoriteDestinationController, 'Paris, Tokyo...', prefixIcon: Icons.favorite_outline),
-            const SizedBox(height: 32),
-          ],
+          ),
         ),
-      ),
+
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(
+              color: AppTheme.terracotta))
+              : _hasError
+              ? ErrorView(onRetry: _loadProfile)
+              : SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 20, vertical: 24),
+            child: Column(children: [
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Stack(clipBehavior: Clip.none, children: [
+                    Container(
+                      width: 104, height: 104,
+                      decoration: BoxDecoration(
+                        color: AppTheme.terracottaLight,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppTheme.terracotta, width: 3),
+                        boxShadow: [BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6))],
+                      ),
+                      child: ClipOval(
+                        child: _localImagePath != null
+                            ? Image.file(File(_localImagePath!),
+                            fit: BoxFit.cover)
+                            : _profileImageUrl != null
+                            ? Image.network(_profileImageUrl!,
+                            fit: BoxFit.cover)
+                            : const Center(child: Icon(
+                            Icons.person_outline_rounded,
+                            color: AppTheme.terracotta,
+                            size: 52)),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          color: AppTheme.navDark,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Colors.white, width: 2),
+                        ),
+                        child: const Center(child: Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white, size: 16)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _pickImage,
+                child: Text('Fotoğrafı Değiştir',
+                    style: AppTheme.sansBody(
+                        size: 13, weight: FontWeight.w700,
+                        color: AppTheme.terracotta)),
+              ),
+              const SizedBox(height: 28),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.border),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(child: _buildField('Ad',
+                            _firstNameController, 'Adınız',
+                            Icons.badge_outlined)),
+                        const SizedBox(width: 14),
+                        Expanded(child: _buildField('Soyad',
+                            _lastNameController, 'Soyadınız',
+                            Icons.badge_outlined)),
+                      ]),
+                      _buildField('Hakkında', _bioController,
+                          'Gezgin hikayenden bahset...',
+                          Icons.edit_note_rounded, maxLines: 3),
+                      _buildField('Konum', _locationController,
+                          'Şehir, Ülke (örn: İstanbul, TR)',
+                          Icons.location_on_outlined),
+                      _buildField('Web Sitesi', _websiteController,
+                          'https://...', Icons.language_outlined),
+                      _buildField('Favori Destinasyon',
+                          _favoriteDestinationController,
+                          'En unutamadığın rota (örn: Kapadokya)',
+                          Icons.flight_takeoff_rounded),
+                    ]),
+              ),
+              const SizedBox(height: 30),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, String hint, {int maxLines = 1, IconData? prefixIcon}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label.toUpperCase(), style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
-        const SizedBox(height: 8),
+  Widget _buildField(String label, TextEditingController controller,
+      String hint, IconData icon, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 14, color: AppTheme.terracotta),
+          const SizedBox(width: 6),
+          Text(label, style: AppTheme.sansBody(
+              size: 12, weight: FontWeight.w700,
+              color: AppTheme.textPrimary)),
+        ]),
+        const SizedBox(height: 7),
         TextField(
           controller: controller,
           maxLines: maxLines,
+          style: AppTheme.sansBody(size: 14, weight: FontWeight.w500),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: AppTheme.textSecondary),
-            filled: true,
-            fillColor: AppTheme.terracottaLight,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: AppTheme.textSecondary, size: 20) : null,
+            hintStyle: AppTheme.sansBody(size: 13, color: AppTheme.textMuted),
+            filled: true, fillColor: const Color(0xFFFAF7F2),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: AppTheme.border, width: 1.2)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: AppTheme.border, width: 1.2)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                    color: AppTheme.terracotta, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
           ),
         ),
-      ],
+      ]),
     );
   }
 }

@@ -53,4 +53,30 @@ class UserService {
     }
     throw Exception('İşlem başarısız');
   }
+
+  static Future<List<Map<String, dynamic>>> getFollowers(String username) async {
+    final token = await StorageService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/$username/followers'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getFollowing(String username) async {
+    final token = await StorageService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/$username/following'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
 }

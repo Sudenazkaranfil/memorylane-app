@@ -7,6 +7,7 @@ import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/privacy_policy_screen.dart';
+import '../theme/app_theme.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,11 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MemoryLane',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFFAFAF8),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFC4956A)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.theme,
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

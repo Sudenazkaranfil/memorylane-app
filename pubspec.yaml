@@ -20,7 +20,13 @@ dependencies:
   http_parser: ^4.0.2
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
-  image_cropper: ^7.0.0
+  path_provider: ^2.1.2
+  sticker_widget: any
+  share_plus: ^10.0.0
+  screenshot: ^3.0.0
+  flutter_animate: ^4.5.0
+  google_fonts: ^6.2.1
+  url_launcher: ^6.2.0
 
 dev_dependencies:
   flutter_test:

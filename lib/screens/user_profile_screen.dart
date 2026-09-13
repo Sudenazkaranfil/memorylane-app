@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/user_service.dart';
 import '../services/journal_service.dart';
 import '../models/journal.dart';
 import 'explore_screen.dart';
+import 'follow_list_screen.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/error_view.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String username;
@@ -18,6 +22,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Map<String, dynamic>? _followStatus;
   List<Journal> _journals = [];
   bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -30,8 +35,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final user = await UserService.getUserProfile(widget.username);
       final followStatus = await UserService.getFollowStatus(widget.username);
       final journals = await JournalService.getPublicJournals();
-      final userJournals = journals.where((j) => j.username == widget.username).toList();
-
+      final userJournals =
+      journals.where((j) => j.username == widget.username).toList();
       setState(() {
         _user = user;
         _followStatus = followStatus;
@@ -39,7 +44,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
     }
   }
 
@@ -48,38 +56,101 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final following = await UserService.toggleFollow(widget.username);
       setState(() {
         _followStatus!['following'] = following;
-        if (following) {
-          _followStatus!['followerCount'] = (_followStatus!['followerCount'] as int) + 1;
-        } else {
-          _followStatus!['followerCount'] = (_followStatus!['followerCount'] as int) - 1;
-        }
+        _followStatus!['followerCount'] =
+            (_followStatus!['followerCount'] as int) + (following ? 1 : -1);
       });
     } catch (e) {}
+  }
+
+  Map<String, dynamic> _getLevelInfo(int journalCount) {
+    if (journalCount <= 3) {
+      return {'emoji': '🌱', 'title': 'Yeni Gezgin',
+        'color': const Color(0xFF7BAE7F)};
+    } else if (journalCount <= 10) {
+      return {'emoji': '🗺️', 'title': 'Kaşif',
+        'color': const Color(0xFFC46B4E)};
+    } else if (journalCount <= 20) {
+      return {'emoji': '✈️', 'title': 'Seyyah',
+        'color': const Color(0xFF5B8A6F)};
+    } else if (journalCount <= 50) {
+      return {'emoji': '🌍', 'title': 'Dünya Gezgini',
+        'color': const Color(0xFF3D6B9E)};
+    } else {
+      return {'emoji': '🏆', 'title': 'Efsane Gezgin',
+        'color': const Color(0xFFD4A017)};
+    }
+  }
+
+  String get _displayName {
+    final firstName = _user?['firstName'];
+    final lastName = _user?['lastName'];
+    if (firstName != null && firstName.toString().isNotEmpty) {
+      if (lastName != null && lastName.toString().isNotEmpty) {
+        return '$firstName $lastName';
+      }
+      return firstName.toString();
+    }
+    return widget.username;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppTheme.navDark,
+            borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(28)),
+            boxShadow: [BoxShadow(
+                color: AppTheme.navDark.withOpacity(0.3),
+                blurRadius: 16, offset: const Offset(0, 6))],
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 16),
+              child: Row(children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('@${widget.username}',
+                          style: GoogleFonts.playfairDisplay(
+                              fontSize: 16, fontWeight: FontWeight.w800,
+                              color: Colors.white, letterSpacing: -0.2)),
+                      Text('Gezgin Profili', style: AppTheme.sansBody(
+                          size: 11, weight: FontWeight.w600,
+                          color: AppTheme.terracotta)),
+                    ]),
+              ]),
+            ),
+          ),
         ),
-        title: Text('@${widget.username}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
-          : SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildJournals(),
-          ],
+
+        Expanded(
+          child: _isLoading
+              ? const ProfileSkeletonLoader()
+              : _hasError
+              ? ErrorView(onRetry: _loadData)
+              : SingleChildScrollView(
+            child: Column(children: [
+              _buildHeader(),
+              _buildJournalGrid(),
+            ]),
+          ),
         ),
-      ),
+      ]),
     );
   }
 
@@ -87,146 +158,406 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final isFollowing = _followStatus?['following'] ?? false;
     final followerCount = _followStatus?['followerCount'] ?? 0;
     final followingCount = _followStatus?['followingCount'] ?? 0;
+    final level = _getLevelInfo(_journals.length);
+    final levelColor = level['color'] as Color;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
       color: Colors.white,
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(40)),
-            child: _user?['profileImageUrl'] != null
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(40),
-              child: Image.network(_user!['profileImageUrl'], fit: BoxFit.cover),
-            )
-                : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 40),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _user?['firstName'] != null && _user?['lastName'] != null
-                ? '${_user!['firstName']} ${_user!['lastName']}'
-                : widget.username,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-          ),
-          Text('@${widget.username}', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-          if (_user?['bio'] != null && _user!['bio'].isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(_user!['bio'], textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5)),
-          ],
-          if (_user?['location'] != null && _user!['location'].isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary),
-                const SizedBox(width: 4),
-                Text(_user!['location'], style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-              ],
+      child: Column(children: [
+        // Cover
+        Container(
+          height: 96,
+          decoration: BoxDecoration(color: AppTheme.terracottaLight),
+          child: Stack(children: [
+            Positioned.fill(child: CustomPaint(painter: _CoverDotPainter())),
+            Positioned(
+              right: -16, bottom: -16,
+              child: Icon(Icons.explore_outlined, size: 96,
+                  color: AppTheme.terracotta.withOpacity(0.08)),
             ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildStat('Ajanda', _journals.length.toString()),
-              const SizedBox(width: 32),
-              _buildStat('Takipçi', followerCount.toString()),
-              const SizedBox(width: 32),
-              _buildStat('Takip', followingCount.toString()),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: 160,
-            height: 40,
-            child: ElevatedButton(
-              onPressed: _toggleFollow,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isFollowing ? Colors.white : AppTheme.terracotta,
-                foregroundColor: isFollowing ? AppTheme.terracotta : Colors.white,
-                side: isFollowing ? BorderSide(color: AppTheme.terracotta) : null,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          ]),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(children: [
+            // Avatar
+            Transform.translate(
+              offset: const Offset(0, -32),
+              child: Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  color: AppTheme.terracottaLight,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3.5),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.16),
+                      blurRadius: 16, offset: const Offset(0, 6))],
+                ),
+                child: ClipOval(
+                  child: _user?['profileImageUrl'] != null
+                      ? Image.network(_user!['profileImageUrl'],
+                      fit: BoxFit.cover)
+                      : const Center(child: Icon(
+                      Icons.person_outline_rounded,
+                      color: AppTheme.terracotta, size: 40)),
+                ),
               ),
-              child: Text(isFollowing ? 'Takip Ediliyor' : 'Takip Et', style: const TextStyle(fontWeight: FontWeight.w500)),
             ),
-          ),
-        ],
+
+            Transform.translate(
+              offset: const Offset(0, -18),
+              child: Column(children: [
+                // İsim + seviye rozeti
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    Text(_displayName,
+                        style: GoogleFonts.playfairDisplay(
+                            fontSize: 20, fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
+                            letterSpacing: -0.4)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: levelColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: levelColor.withOpacity(0.3)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(level['emoji'],
+                            style: const TextStyle(fontSize: 11)),
+                        const SizedBox(width: 4),
+                        Text(level['title'], style: TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w800,
+                            color: levelColor)),
+                      ]),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 3),
+                Text('@${widget.username}', style: AppTheme.sansBody(
+                    size: 12, weight: FontWeight.w600,
+                    color: AppTheme.terracotta)),
+
+                if (_user?['bio'] != null &&
+                    _user!['bio'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(_user!['bio'],
+                        textAlign: TextAlign.center,
+                        style: AppTheme.sansBody(
+                            size: 13, color: AppTheme.textSecondary)),
+                  ),
+                ],
+
+                if (_user?['location'] != null &&
+                    _user!['location'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 14, color: AppTheme.terracotta),
+                        const SizedBox(width: 4),
+                        Text(_user!['location'], style: AppTheme.sansBody(
+                            size: 12, weight: FontWeight.w600,
+                            color: AppTheme.textSecondary)),
+                      ]),
+                ],
+
+                const SizedBox(height: 18),
+
+                // Stats
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAF7F2),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppTheme.border),
+                    boxShadow: [BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStat('Ajanda', _journals.length.toString(), null),
+                      Container(width: 1, height: 32, color: AppTheme.border),
+                      _buildStat('Takipçi', followerCount.toString(), () {
+                        Navigator.push(context, MaterialPageRoute(
+                            builder: (context) => FollowListScreen(
+                                username: widget.username,
+                                type: 'followers')));
+                      }),
+                      Container(width: 1, height: 32, color: AppTheme.border),
+                      _buildStat('Takip', followingCount.toString(), () {
+                        Navigator.push(context, MaterialPageRoute(
+                            builder: (context) => FollowListScreen(
+                                username: widget.username,
+                                type: 'following')));
+                      }),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Takip butonu
+                SizedBox(
+                  width: double.infinity, height: 44,
+                  child: ElevatedButton(
+                    onPressed: _toggleFollow,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isFollowing
+                          ? const Color(0xFFFAF7F2) : AppTheme.terracotta,
+                      foregroundColor: isFollowing
+                          ? AppTheme.textPrimary : Colors.white,
+                      side: isFollowing
+                          ? BorderSide(color: AppTheme.border, width: 1.5)
+                          : null,
+                      elevation: isFollowing ? 0 : 3,
+                      shadowColor: AppTheme.terracotta.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(isFollowing
+                            ? Icons.check_rounded
+                            : Icons.person_add_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Text(isFollowing ? 'Takip Ediliyor' : 'Takip Et',
+                            style: AppTheme.sansBody(
+                                size: 14, weight: FontWeight.w700,
+                                color: isFollowing
+                                    ? AppTheme.textPrimary : Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+        Container(height: 1, color: AppTheme.border),
+      ]),
+    );
+  }
+
+  Widget _buildStat(String label, String value, VoidCallback? onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Column(children: [
+          Text(value, style: GoogleFonts.playfairDisplay(
+              fontSize: 18, fontWeight: FontWeight.w800,
+              color: AppTheme.textPrimary)),
+          const SizedBox(height: 2),
+          Text(label, style: AppTheme.sansBody(
+              size: 11, weight: FontWeight.w600,
+              color: AppTheme.terracotta)),
+        ]),
       ),
     );
   }
 
-  Widget _buildStat(String label, String value) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        Text(label, style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-      ],
-    );
-  }
-
-  Widget _buildJournals() {
+  Widget _buildJournalGrid() {
     if (_journals.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(40),
         child: Center(
-          child: Text('Henüz public ajanda yok', style: TextStyle(color: AppTheme.textSecondary)),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracottaLight,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.border),
+                  ),
+                  child: const Icon(Icons.book_outlined,
+                      size: 30, color: AppTheme.terracotta),
+                ),
+                const SizedBox(height: 14),
+                Text('Henüz herkese açık ajanda yok',
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 14, fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary)),
+                const SizedBox(height: 4),
+                Text('Bu gezgin henüz paylaştığı bir ajanda eklemedi.',
+                    style: AppTheme.sansBody(
+                        size: 12, color: AppTheme.textSecondary)),
+              ]),
         ),
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Ajandalar', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.5)),
-          const SizedBox(height: 12),
-          ...(_journals.map((journal) => GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ExploreJournalScreen(journal: journal))),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.border)),
-              child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.auto_stories_outlined,
+              size: 16, color: AppTheme.terracotta),
+          const SizedBox(width: 6),
+          Text('$_displayName Ajandaları',
+              style: GoogleFonts.playfairDisplay(
+                  fontSize: 15, fontWeight: FontWeight.w800,
+                  color: AppTheme.textPrimary)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.terracottaLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text('${_journals.length} ajanda',
+                style: AppTheme.sansBody(
+                    size: 11, weight: FontWeight.w700,
+                    color: AppTheme.terracotta)),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, crossAxisSpacing: 10,
+            mainAxisSpacing: 12, childAspectRatio: 0.72,
+          ),
+          itemCount: _journals.length,
+          itemBuilder: (context, index) {
+            final journal = _journals[index];
+            return GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (context) =>
+                      ExploreJournalScreen(journal: journal))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), bottomLeft: Radius.circular(14)),
-                    child: journal.coverImageUrl != null
-                        ? Image.network(journal.coverImageUrl!, width: 72, height: 72, fit: BoxFit.cover)
-                        : Container(width: 72, height: 72, color: AppTheme.terracottaLight, child: const Icon(Icons.book_outlined, color: AppTheme.terracotta)),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(journal.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.visibility_outlined, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
-                            const SizedBox(width: 4),
-                            Text('${journal.viewCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
-                            const SizedBox(width: 8),
-                            Icon(Icons.bookmark_outline, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
-                            const SizedBox(width: 4),
-                            Text('${journal.saveCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
-                          ],
-                        ),
-                      ],
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(4),
+                            right: Radius.circular(12)),
+                        boxShadow: [BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 6, offset: const Offset(0, 3))],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(4),
+                            right: Radius.circular(12)),
+                        child: journal.coverImageUrl != null
+                            ? Image.network(journal.coverImageUrl!,
+                            fit: BoxFit.cover, width: double.infinity)
+                            : _buildFallbackCover(index, journal),
+                      ),
                     ),
                   ),
-                  const Padding(padding: EdgeInsets.only(right: 12), child: Icon(Icons.chevron_right, color: AppTheme.textSecondary)),
+                  const SizedBox(height: 6),
+                  Text(journal.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sansBody(
+                          size: 11, weight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
                 ],
               ),
-            ),
-          ))).toList(),
-        ],
-      ),
+            );
+          },
+        ),
+      ]),
     );
   }
+
+  Widget _buildFallbackCover(int index, Journal journal) {
+    final color = _getColor(index);
+    return Container(
+      width: double.infinity, height: double.infinity,
+      color: color.withOpacity(0.08),
+      child: Stack(children: [
+        // Dot grid
+        CustomPaint(
+            painter: _DotGridPainter(color: color),
+            size: Size.infinite),
+        // Washi tape
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+              height: 4, color: color.withOpacity(0.4)),
+        ),
+        // Büyük harf
+        Positioned(
+          bottom: -8, right: 4,
+          child: Text(
+            journal.title.isNotEmpty
+                ? journal.title[0].toUpperCase() : 'M',
+            style: TextStyle(
+                fontSize: 48, fontWeight: FontWeight.w800,
+                color: color.withOpacity(0.15),
+                fontFamily: 'serif'),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Color _getColor(int index) {
+    final colors = [
+      const Color(0xFFC46B4E), const Color(0xFF5B8A6F),
+      const Color(0xFF7B8FA1), const Color(0xFF8B7355),
+      const Color(0xFF6B5A8B), const Color(0xFF8B5030),
+    ];
+    return colors[index % colors.length];
+  }
+}
+
+class _CoverDotPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.terracotta.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    const spacing = 18.0;
+    for (double x = spacing; x < size.width; x += spacing) {
+      for (double y = spacing; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.0, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _DotGridPainter extends CustomPainter {
+  final Color color;
+  const _DotGridPainter({this.color = const Color(0xFFC4956A)});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    const spacing = 12.0;
+    for (double x = spacing; x < size.width; x += spacing) {
+      for (double y = spacing; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), 0.8, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

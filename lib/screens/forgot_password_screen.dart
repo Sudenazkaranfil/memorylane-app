@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
+import '../widgets/error_view.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -21,7 +23,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   String? _errorMessage;
-  int _step = 1; // 1: email, 2: code, 3: new password
+  int _step = 1;
 
   static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
@@ -42,19 +44,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _errorMessage = 'E-posta adresinizi girin');
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/forgot-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': _emailController.text.trim()}),
       );
-
       if (response.statusCode == 200) {
         setState(() => _step = 2);
       } else {
@@ -73,12 +69,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _errorMessage = '6 haneli kodu girin');
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/verify-reset-code'),
@@ -88,7 +79,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           'code': _code,
         }),
       );
-
       if (response.statusCode == 200) {
         setState(() => _step = 3);
       } else {
@@ -111,12 +101,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _errorMessage = 'Şifreler eşleşmiyor');
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/reset-password'),
@@ -127,13 +112,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           'newPassword': _newPasswordController.text,
         }),
       );
-
       if (response.statusCode == 200) {
         if (mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Şifreniz başarıyla güncellendi!')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Şifreniz başarıyla güncellendi!')));
         }
       } else {
         final data = jsonDecode(response.body);
@@ -150,59 +133,86 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppTheme.textPrimary, size: 20),
-          onPressed: () {
-            if (_step > 1) {
-              setState(() {
-                _step--;
-                _errorMessage = null;
-              });
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              _buildStepIndicator(),
-              const SizedBox(height: 40),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _step == 1
-                    ? _buildEmailStep()
-                    : _step == 2
-                    ? _buildCodeStep()
-                    : _buildPasswordStep(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStepIndicator() {
-    return Row(
-      children: List.generate(3, (index) => Expanded(
-        child: Container(
-          height: 4,
-          margin: EdgeInsets.only(right: index < 2 ? 8 : 0),
+      body: Column(children: [
+        Container(
+          width: double.infinity,
           decoration: BoxDecoration(
-            color: index < _step ? AppTheme.terracotta : AppTheme.border,
-            borderRadius: BorderRadius.circular(2),
+            color: AppTheme.navDark,
+            borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(36)),
+            boxShadow: [BoxShadow(
+                color: AppTheme.navDark.withOpacity(0.4),
+                blurRadius: 20, offset: const Offset(0, 8))],
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 28, 28),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, children: [
+                IconButton(
+                  onPressed: () {
+                    if (_step > 1) {
+                      setState(() { _step--; _errorMessage = null; });
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white, size: 18),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.12),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: List.generate(3, (index) => Expanded(
+                    child: Container(
+                      height: 4,
+                      margin: EdgeInsets.only(right: index < 2 ? 6 : 0),
+                      decoration: BoxDecoration(
+                        color: index < _step
+                            ? AppTheme.terracotta
+                            : Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  )),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                    _step == 1 ? 'Şifreni sıfırla'
+                        : _step == 2 ? 'Kodu gir' : 'Yeni şifre',
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 26, fontWeight: FontWeight.w900,
+                        color: Colors.white, letterSpacing: -0.5)),
+                const SizedBox(height: 4),
+                Text(
+                    _step == 1 ? 'E-posta adresini gir, kod gönderelim'
+                        : _step == 2
+                        ? '${_emailController.text} adresine gönderdik'
+                        : 'Yeni şifreni belirle',
+                    style: AppTheme.sansBody(
+                        size: 13, color: Colors.white.withOpacity(0.8))),
+              ]),
+            ),
           ),
         ),
-      )),
+
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _step == 1 ? _buildEmailStep()
+                  : _step == 2 ? _buildCodeStep()
+                  : _buildPasswordStep(),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -211,51 +221,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       key: const ValueKey('email'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 64, height: 64,
-          decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
-          child: const Icon(Icons.lock_reset_outlined, color: AppTheme.terracotta, size: 32),
-        ),
-        const SizedBox(height: 24),
-        const Text('Şifreni Sıfırla', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+        _buildLabel('E-posta adresi'),
         const SizedBox(height: 8),
-        Text('E-posta adresini gir, sıfırlama kodu gönderelim.', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5)),
-        const SizedBox(height: 32),
-        Text('E-POSTA', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
-        const SizedBox(height: 8),
-        TextField(
+        _buildTextField(
           controller: _emailController,
+          hint: 'ornek@mail.com',
           keyboardType: TextInputType.emailAddress,
+          prefixIcon: Icons.mail_outline_rounded,
           autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'E-posta adresiniz',
-            hintStyle: TextStyle(color: AppTheme.textSecondary),
-            filled: true,
-            fillColor: AppTheme.terracottaLight,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: 12),
-          Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+          ErrorCard(message: _errorMessage),
         ],
         const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity, height: 52,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _sendCode,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.terracotta,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Kod Gönder', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
-        ),
+        _buildButton('Kod gönder', _isLoading ? null : _sendCode),
       ],
     );
   }
@@ -265,34 +245,33 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       key: const ValueKey('code'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 64, height: 64,
-          decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
-          child: const Icon(Icons.mark_email_unread_outlined, color: AppTheme.terracotta, size: 32),
-        ),
-        const SizedBox(height: 24),
-        const Text('Kodu Gir', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        const SizedBox(height: 8),
-        Text('${_emailController.text} adresine gönderilen 6 haneli kodu gir.', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5)),
-        const SizedBox(height: 32),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(6, (index) => SizedBox(
-            width: 48, height: 56,
+            width: 44, height: 54,
             child: TextField(
               controller: _codeControllers[index],
               focusNode: _codeFocusNodes[index],
               textAlign: TextAlign.center,
               keyboardType: TextInputType.number,
               maxLength: 1,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
+              style: AppTheme.sansBody(
+                  size: 22, weight: FontWeight.w800),
               decoration: InputDecoration(
                 counterText: '',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.border)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.border)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.terracotta, width: 2)),
+                filled: true, fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppTheme.border, width: 1.5)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppTheme.border, width: 1.5)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppTheme.terracotta, width: 2)),
               ),
               onChanged: (value) {
                 if (value.isNotEmpty && index < 5) {
@@ -307,29 +286,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: 12),
-          Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+          ErrorCard(message: _errorMessage),
         ],
         const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity, height: 52,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _verifyCode,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.terracotta,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Doğrula', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
-        ),
-        const SizedBox(height: 16),
+        _buildButton('Doğrula', _isLoading ? null : _verifyCode),
+        const SizedBox(height: 12),
         Center(
           child: TextButton(
             onPressed: _sendCode,
-            child: Text('Kodu tekrar gönder', style: TextStyle(color: AppTheme.terracotta)),
+            child: Text('Kodu tekrar gönder', style: AppTheme.sansBody(
+                size: 13, weight: FontWeight.w800,
+                color: AppTheme.terracotta)),
           ),
         ),
       ],
@@ -341,74 +308,113 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       key: const ValueKey('password'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 64, height: 64,
-          decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
-          child: const Icon(Icons.lock_outlined, color: AppTheme.terracotta, size: 32),
-        ),
-        const SizedBox(height: 24),
-        const Text('Yeni Şifre', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+        _buildLabel('Yeni şifre'),
         const SizedBox(height: 8),
-        Text('Yeni şifreni belirle.', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
-        const SizedBox(height: 32),
-        Text('YENİ ŞİFRE', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
-        const SizedBox(height: 8),
-        TextField(
+        _buildTextField(
           controller: _newPasswordController,
-          obscureText: _obscurePassword,
-          decoration: InputDecoration(
-            hintText: 'En az 6 karakter',
-            hintStyle: TextStyle(color: AppTheme.textSecondary),
-            filled: true,
-            fillColor: AppTheme.terracottaLight,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            suffixIcon: IconButton(
-              icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: AppTheme.textSecondary),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-            ),
+          hint: 'En az 6 karakter',
+          obscure: _obscurePassword,
+          prefixIcon: Icons.lock_outline_rounded,
+          suffixIcon: IconButton(
+            icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: AppTheme.textSecondary, size: 20),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
           ),
         ),
         const SizedBox(height: 16),
-        Text('ŞİFRE TEKRAR', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
+        _buildLabel('Şifre tekrar'),
         const SizedBox(height: 8),
-        TextField(
+        _buildTextField(
           controller: _confirmPasswordController,
-          obscureText: _obscureConfirm,
-          decoration: InputDecoration(
-            hintText: 'Şifreni tekrar gir',
-            hintStyle: TextStyle(color: AppTheme.textSecondary),
-            filled: true,
-            fillColor: AppTheme.terracottaLight,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            suffixIcon: IconButton(
-              icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: AppTheme.textSecondary),
-              onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-            ),
+          hint: 'Şifreni tekrar gir',
+          obscure: _obscureConfirm,
+          prefixIcon: Icons.lock_outline_rounded,
+          suffixIcon: IconButton(
+            icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: AppTheme.textSecondary, size: 20),
+            onPressed: () =>
+                setState(() => _obscureConfirm = !_obscureConfirm),
           ),
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: 12),
-          Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+          ErrorCard(message: _errorMessage),
         ],
         const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity, height: 52,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _resetPassword,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.terracotta,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Şifremi Güncelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
-        ),
+        _buildButton(
+            'Şifremi güncelle', _isLoading ? null : _resetPassword),
       ],
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(text, style: AppTheme.sansBody(
+        size: 13, weight: FontWeight.w700,
+        color: const Color(0xFF523F31)));
+  }
+
+  Widget _buildButton(String label, VoidCallback? onPressed) {
+    return SizedBox(
+      width: double.infinity, height: 54,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.navDark,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
+        ),
+        child: onPressed == null
+            ? const SizedBox(width: 22, height: 22,
+            child: CircularProgressIndicator(
+                color: Colors.white, strokeWidth: 2))
+            : Text(label, style: AppTheme.sansBody(
+            size: 15, weight: FontWeight.w800, color: Colors.white)),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+    bool obscure = false,
+    bool autofocus = false,
+    IconData? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      autofocus: autofocus,
+      style: AppTheme.sansBody(size: 14, weight: FontWeight.w600),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: AppTheme.sansBody(size: 13, color: AppTheme.textMuted),
+        filled: true, fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: AppTheme.border, width: 1.5)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: AppTheme.border, width: 1.5)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: AppTheme.terracotta, width: 2)),
+        prefixIcon: prefixIcon != null
+            ? Icon(prefixIcon, color: AppTheme.terracotta, size: 20) : null,
+        suffixIcon: suffixIcon,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 16),
+      ),
     );
   }
 }

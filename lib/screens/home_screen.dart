@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import '../services/storage_service.dart';
-import '../models/journal.dart';
-import '../services/journal_service.dart';
-import 'journal_detail_screen.dart';
-import 'profile_screen.dart';
-import 'explore_screen.dart';
-import 'map_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../theme/app_theme.dart';
+import '../services/storage_service.dart';
+import '../services/journal_service.dart';
+import '../models/journal.dart';
+import '../widgets/app_nav_bar.dart';
+import 'journal_detail_screen.dart';
+import 'explore_screen.dart';
+import 'map_screen.dart';
+import 'profile_screen.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/error_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,26 +21,22 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   String? _username;
+  String? _firstName;
   String? _profileImageUrl;
   int _selectedIndex = 0;
   List<Journal> _myJournals = [];
   List<Journal> _savedJournals = [];
   bool _isLoading = true;
-  late TabController _tabController;
+  bool _hasError = false;
+
+  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -46,12 +46,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     try {
       final response = await http.get(
-        Uri.parse('https://memorylane-wk1y.onrender.com/auth/profile'),
+        Uri.parse('$baseUrl/auth/profile'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() => _profileImageUrl = data['profileImageUrl']);
+        setState(() {
+          _profileImageUrl = data['profileImageUrl'];
+          _firstName = data['firstName'];
+        });
       }
     } catch (e) {}
 
@@ -68,7 +71,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (e.toString().contains('401') || e.toString().contains('unauthorized')) {
+        await StorageService.clearAll();
+        if (mounted) Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -76,12 +87,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     try {
       final journal = await JournalService.createJournal(title, visibility);
       setState(() => _myJournals.add(journal));
-    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ajanda oluşturulamadı')),
-        );
+        await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => JournalDetailScreen(journal: journal)));
+        await _loadJournals();
       }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ajanda oluşturulamadı')));
     }
   }
 
@@ -90,22 +103,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Ajandayı sil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-        content: Text('Bu ajanda ve içindeki tüm sayfalar kalıcı olarak silinecek.', style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Ajandayı sil',
+            style: GoogleFonts.playfairDisplay(
+                fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text(
+            'Bu ajanda ve içindeki tüm sayfalar kalıcı olarak silinecek.',
+            style: AppTheme.sansBody(size: 14, color: AppTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('İptal',
+                style: AppTheme.sansBody(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade400,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
+                backgroundColor: Colors.red.shade400,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
             child: const Text('Sil'),
           ),
         ],
@@ -117,99 +133,139 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final titleController = TextEditingController();
     String selectedVisibility = 'PRIVATE';
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.background,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Yeni Ajanda', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          content: Column(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFAF7F2),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: titleController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Ajanda adı',
-                  hintStyle: TextStyle(color: AppTheme.textSecondary),
-                  filled: true,
-                  fillColor: AppTheme.terracottaLight,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              Center(
+                child: Container(
+                  width: 44, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.brown.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Gizlilik', style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1)),
-              const SizedBox(height: 8),
+              const SizedBox(height: 18),
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setDialogState(() => selectedVisibility = 'PRIVATE'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: selectedVisibility == 'PRIVATE' ? AppTheme.terracotta : AppTheme.terracottaLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.lock_outline, size: 16, color: selectedVisibility == 'PRIVATE' ? Colors.white : AppTheme.terracotta),
-                            const SizedBox(width: 6),
-                            Text('Özel', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: selectedVisibility == 'PRIVATE' ? Colors.white : AppTheme.terracotta)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setDialogState(() => selectedVisibility = 'PUBLIC'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: selectedVisibility == 'PUBLIC' ? AppTheme.terracotta : AppTheme.terracottaLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.public, size: 16, color: selectedVisibility == 'PUBLIC' ? Colors.white : AppTheme.terracotta),
-                            const SizedBox(width: 6),
-                            Text('Herkese açık', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: selectedVisibility == 'PUBLIC' ? Colors.white : AppTheme.terracotta)),
-                          ],
-                        ),
-                      ),
-                    ),
+                  Text('Yeni Seyahat Ajandası',
+                      style: GoogleFonts.playfairDisplay(
+                          fontSize: 20, fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
+                  IconButton(
+                    icon: Icon(Icons.close, color: AppTheme.textSecondary),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleController,
+                autofocus: true,
+                style: AppTheme.sansBody(),
+                decoration: InputDecoration(
+                  labelText: 'Ajanda Başlığı (örn: Roma Gezisi)',
+                  labelStyle: AppTheme.sansBody(color: AppTheme.textSecondary),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: AppTheme.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: AppTheme.terracotta, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setModalState(() => selectedVisibility = 'PUBLIC'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selectedVisibility == 'PUBLIC'
+                            ? AppTheme.terracotta : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: selectedVisibility == 'PUBLIC'
+                                ? AppTheme.terracotta : AppTheme.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('🌍 Herkese Açık',
+                          style: AppTheme.sansBody(
+                              size: 13, weight: FontWeight.w700,
+                              color: selectedVisibility == 'PUBLIC'
+                                  ? Colors.white : AppTheme.textPrimary)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setModalState(() => selectedVisibility = 'PRIVATE'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selectedVisibility == 'PRIVATE'
+                            ? AppTheme.navDark : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: selectedVisibility == 'PRIVATE'
+                                ? AppTheme.navDark : AppTheme.border),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text('🔒 Kişisel (Gizli)',
+                          style: AppTheme.sansBody(
+                              size: 13, weight: FontWeight.w700,
+                              color: selectedVisibility == 'PRIVATE'
+                                  ? Colors.white : AppTheme.textPrimary)),
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) return;
+                    Navigator.pop(context);
+                    await _createJournal(title, selectedVisibility);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.terracotta,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Ajandayı Başlat ✨',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('İptal', style: TextStyle(color: AppTheme.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (titleController.text.trim().isEmpty) return;
-                Navigator.pop(context);
-                await _createJournal(titleController.text.trim(), selectedVisibility);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.terracotta,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Oluştur'),
-            ),
-          ],
         ),
       ),
     );
@@ -217,272 +273,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildBody() {
     switch (_selectedIndex) {
-      case 0:
-        return _buildJournalsTab();
-      case 1:
-        return const MapScreen();
-      case 2:
-        return const ExploreScreen();
-      case 3:
-        return const ProfileScreen();
-      default:
-        return _buildJournalsTab();
+      case 0: return _buildJournalsTab();
+      case 1: return const ExploreScreen();
+      case 2: return const MapScreen();
+      case 3: return ProfileScreen(onProfileUpdated: () => _loadData());
+      default: return _buildJournalsTab();
     }
-  }
-
-  Widget _buildJournalsTab() {
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_getGreeting(), style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, letterSpacing: 0.5)),
-                    Text(_username ?? 'Gezgin', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                  ],
-                ),
-                GestureDetector(
-                  onTap: () => setState(() => _selectedIndex = 3),
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppTheme.terracottaLight,
-                      borderRadius: BorderRadius.circular(21),
-                    ),
-                    child: _profileImageUrl != null
-                        ? ClipRRect(
-                      borderRadius: BorderRadius.circular(21),
-                      child: Image.network(
-                        _profileImageUrl!,
-                        fit: BoxFit.cover,
-                        width: 42,
-                        height: 42,
-                      ),
-                    )
-                        : const Icon(Icons.person_outline, color: AppTheme.terracotta, size: 22),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          TabBar(
-            controller: _tabController,
-            labelColor: AppTheme.terracotta,
-            unselectedLabelColor: AppTheme.textSecondary,
-            indicatorColor: AppTheme.terracotta,
-            indicatorSize: TabBarIndicatorSize.label,
-            onTap: (index) => _loadJournals(),
-            tabs: const [
-              Tab(text: 'Ajandalarım'),
-              Tab(text: 'Kaydettiklerim'),
-            ],
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta))
-                : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildJournalList(_myJournals, isOwn: true),
-                _buildJournalList(_savedJournals, isOwn: false),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJournalList(List<Journal> journals, {required bool isOwn}) {
-    if (journals.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(color: AppTheme.terracottaLight, borderRadius: BorderRadius.circular(32)),
-              child: Icon(isOwn ? Icons.book_outlined : Icons.bookmark_outline, color: AppTheme.terracotta, size: 32),
-            ),
-            const SizedBox(height: 16),
-            Text(isOwn ? 'İlk ajandanı oluştur' : 'Henüz kayıt yok', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-            const SizedBox(height: 8),
-            Text(isOwn ? 'Gezi anılarını kaydetmeye başla' : 'Keşfet\'te ajandaları kaydet', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      color: AppTheme.terracotta,
-      onRefresh: _loadJournals,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(24),
-        itemCount: journals.length,
-        itemBuilder: (context, index) {
-          final journal = journals[index];
-          return isOwn ? _buildOwnJournalCard(journal) : _buildJournalCardContent(journal, isOwn: false);
-        },
-      ),
-    );
-  }
-
-  Widget _buildOwnJournalCard(Journal journal) {
-    return Dismissible(
-      key: Key('journal_${journal.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(14)),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
-      ),
-      confirmDismiss: (direction) => _showDeleteConfirmDialog(),
-      onDismissed: (direction) async {
-        final journalId = journal.id;
-        final journalIndex = _myJournals.indexWhere((j) => j.id == journalId);
-        if (journalIndex != -1) {
-          final removedJournal = _myJournals[journalIndex];
-          setState(() => _myJournals.removeAt(journalIndex));
-          try {
-            await JournalService.deleteJournal(journalId);
-          } catch (e) {
-            setState(() => _myJournals.insert(journalIndex, removedJournal));
-          }
-        }
-      },
-      child: _buildJournalCardContent(journal, isOwn: true),
-    );
-  }
-
-  Widget _buildJournalCardContent(Journal journal, {required bool isOwn}) {
-    return GestureDetector(
-      onTap: () async {
-        final updated = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => JournalDetailScreen(journal: journal)),
-        );
-        if (updated == true) await _loadJournals();
-      },
-      onLongPress: isOwn ? () async {
-        final shouldDelete = await _showDeleteConfirmDialog();
-        if (shouldDelete == true) {
-          final journalId = journal.id;
-          final journalIndex = _myJournals.indexWhere((j) => j.id == journalId);
-          if (journalIndex != -1) {
-            final removedJournal = _myJournals[journalIndex];
-            setState(() => _myJournals.removeAt(journalIndex));
-            try {
-              await JournalService.deleteJournal(journalId);
-            } catch (e) {
-              setState(() => _myJournals.insert(journalIndex, removedJournal));
-            }
-          }
-        }
-      } : null,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.border),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), bottomLeft: Radius.circular(14)),
-              child: journal.coverImageUrl != null
-                  ? Image.network(journal.coverImageUrl!, width: 80, height: 80, fit: BoxFit.cover)
-                  : Container(
-                width: 80,
-                height: 80,
-                color: AppTheme.terracottaLight,
-                child: const Icon(Icons.book_outlined, color: AppTheme.terracotta, size: 32),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(journal.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(journal.visibility == 'PUBLIC' ? Icons.public : Icons.lock_outline, size: 12, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(journal.visibility == 'PUBLIC' ? 'Herkese açık' : 'Özel', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                        if (!isOwn) ...[
-                          const SizedBox(width: 8),
-                          Text('@${journal.username ?? ''}', style: TextStyle(fontSize: 12, color: AppTheme.terracotta)),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.visibility_outlined, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
-                        const SizedBox(width: 4),
-                        Text('${journal.viewCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
-                        const SizedBox(width: 8),
-                        Icon(Icons.bookmark_outline, size: 12, color: AppTheme.textSecondary.withOpacity(0.6)),
-                        const SizedBox(width: 4),
-                        Text('${journal.saveCount}', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary.withOpacity(0.6))),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: _buildBody(),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-        onPressed: _showCreateJournalDialog,
-        backgroundColor: AppTheme.terracotta,
-        child: const Icon(Icons.add, color: Colors.white),
-      )
-          : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        selectedItemColor: AppTheme.terracotta,
-        unselectedItemColor: AppTheme.textSecondary,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.book_outlined), activeIcon: Icon(Icons.book), label: 'Ajandalar'),
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Harita'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: 'Keşfet'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profil'),
-        ],
-      ),
-    );
   }
 
   String _getGreeting() {
@@ -491,4 +287,642 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (hour < 18) return 'İyi günler,';
     return 'İyi akşamlar,';
   }
+
+  String _getDate() {
+    const days = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe',
+      'Cuma', 'Cumartesi', 'Pazar'];
+    const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+    final now = DateTime.now();
+    return '${now.day} ${months[now.month - 1]}, ${days[now.weekday - 1]}';
+  }
+
+  Widget _buildJournalsTab() {
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        color: AppTheme.terracotta,
+        onRefresh: _loadJournals,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 14),
+              if (_isLoading)
+                const HomeSkeletonLoader()
+              else if (_hasError)
+                ErrorView(onRetry: _loadJournals)
+              else ...[
+                if (_myJournals.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildHeroCard(_myJournals.first),
+                  ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildQuickPromptCard(),
+                ),
+                const SizedBox(height: 24),
+                _buildJournalsSection(),
+                if (_savedJournals.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _buildSavedSection(),
+                ],
+                if (_myJournals.isEmpty) _buildEmptyState(),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(children: [
+            GestureDetector(
+              onTap: () => setState(() => _selectedIndex = 3),
+              child: Container(
+                width: 44, height: 44,
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFC4956A), Color(0xFFEADBCE), Color(0xFFC46B4E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: ClipOval(
+                  child: _profileImageUrl != null
+                      ? Image.network(_profileImageUrl!, fit: BoxFit.cover)
+                      : Container(
+                      color: AppTheme.terracottaLight,
+                      child: Icon(Icons.person_outline,
+                          color: AppTheme.terracotta, size: 22)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text(_getGreeting(),
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 13, fontStyle: FontStyle.italic,
+                        color: AppTheme.textSecondary)),
+                const SizedBox(width: 4),
+                Text(_firstName ?? _username ?? 'Gezgin',
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 15, fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary)),
+              ]),
+              Text(_getDate(),
+                  style: AppTheme.sansBody(
+                      size: 11, weight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+            ]),
+          ]),
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.navDark,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 8, offset: const Offset(0, 2))],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_none_rounded,
+                  color: Color(0xFFEADBCE), size: 20),
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Henüz bildirim yok.'))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroCard(Journal journal) {
+    return GestureDetector(
+      onTap: () async {
+        final updated = await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => JournalDetailScreen(journal: journal)));
+        if (updated == true) await _loadJournals();
+      },
+      child: Container(
+        height: 270,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.border, width: 1),
+          boxShadow: [BoxShadow(
+            color: const Color(0xFF2A1D15).withOpacity(0.18),
+            blurRadius: 32, offset: const Offset(0, 14),
+          )],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(fit: StackFit.expand, children: [
+            journal.coverImageUrl != null
+                ? Image.network(journal.coverImageUrl!, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _buildFallbackCover(journal))
+                : _buildFallbackCover(journal),
+            if (journal.coverImageUrl != null)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.transparent,
+                      Colors.black.withOpacity(0.2),
+                      Colors.black.withOpacity(0.85)],
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    stops: const [0.4, 0.65, 1.0],
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 14, left: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.1), blurRadius: 6)],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.auto_awesome, size: 13,
+                      color: Color(0xFFC46B4E)),
+                  const SizedBox(width: 4),
+                  Text('Son Gezin', style: AppTheme.sansBody(
+                      size: 11, weight: FontWeight.w800,
+                      color: AppTheme.textPrimary)),
+                ]),
+              ),
+            ),
+            Positioned(
+              top: 14, right: 14,
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.85),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bookmark_border_rounded,
+                    size: 18, color: Color(0xFF1C110A)),
+              ),
+            ),
+            Positioned(
+              bottom: 18, left: 18, right: 18,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: journal.visibility == 'PUBLIC'
+                        ? const Color(0xFFBBEECE)
+                        : Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    journal.visibility == 'PUBLIC' ? 'HERKESE AÇIK' : 'KİŞİSEL',
+                    style: TextStyle(
+                        fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                        color: journal.visibility == 'PUBLIC'
+                            ? const Color(0xFF0A3D1E) : Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(journal.title,
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 22, fontWeight: FontWeight.w800,
+                        color: journal.coverImageUrl != null
+                            ? Colors.white : AppTheme.textPrimary,
+                        shadows: journal.coverImageUrl != null ? [Shadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2))] : null)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Icon(Icons.location_on, size: 14,
+                      color: journal.coverImageUrl != null
+                          ? const Color(0xFFFFDCBF) : AppTheme.terracotta),
+                  const SizedBox(width: 4),
+                  Text('Seyahat', style: AppTheme.sansBody(
+                      size: 12, weight: FontWeight.w600,
+                      color: journal.coverImageUrl != null
+                          ? const Color(0xFFFFDCBF) : AppTheme.terracotta)),
+                  const SizedBox(width: 10),
+                  Text(
+                      '• ${journal.visibility == 'PUBLIC' ? 'Toplulukla Paylaşıldı' : 'Kişisel'}',
+                      style: AppTheme.sansBody(size: 11,
+                          color: journal.coverImageUrl != null
+                              ? Colors.white.withOpacity(0.85)
+                              : AppTheme.textSecondary)),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackCover(Journal journal) {
+    return Container(
+      color: const Color(0xFFFAF7F2),
+      child: Stack(alignment: Alignment.center, children: [
+        CustomPaint(painter: _DotGridPainter(), size: Size.infinite),
+        Text(
+          journal.title.isNotEmpty ? journal.title[0].toUpperCase() : 'M',
+          style: GoogleFonts.playfairDisplay(
+              fontSize: 100, fontWeight: FontWeight.bold,
+              color: AppTheme.terracotta.withOpacity(0.12)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildQuickPromptCard() {
+    return GestureDetector(
+      onTap: _showCreateJournalDialog,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.navDark,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(
+              color: Colors.black.withOpacity(0.16),
+              blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.terracotta.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.edit_note_rounded,
+                color: AppTheme.terracotta, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Günün Anısını Bırak',
+                    style: AppTheme.sansBody(
+                        size: 13, weight: FontWeight.w700, color: Colors.white)),
+                const SizedBox(height: 2),
+                Text('Yeni bir ajanda oluştur, anını kaydet...',
+                    style: AppTheme.sansBody(
+                        size: 11, color: Colors.white.withOpacity(0.6))),
+              ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: AppTheme.terracotta,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text('Başlat',
+                style: AppTheme.sansBody(
+                    size: 12, weight: FontWeight.w700, color: Colors.white)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildJournalsSection() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(children: [
+          Text('Ajandalarım',
+              style: GoogleFonts.playfairDisplay(
+                  fontSize: 18, fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.navDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('(${_myJournals.length})',
+                style: AppTheme.sansBody(
+                    size: 11, weight: FontWeight.w700,
+                    color: const Color(0xFFEADBCE))),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: _showCreateJournalDialog,
+            child: Row(children: [
+              Text('Yeni Ekle',
+                  style: AppTheme.sansBody(
+                      size: 12, weight: FontWeight.w700,
+                      color: AppTheme.terracotta)),
+              const SizedBox(width: 2),
+              Icon(Icons.add, size: 16, color: AppTheme.terracotta),
+            ]),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      _myJournals.isEmpty
+          ? const SizedBox()
+          : SizedBox(
+        height: 195,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: _myJournals.length,
+          itemBuilder: (context, index) =>
+              _buildJournalCard(_myJournals[index]),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _buildJournalCard(Journal journal) {
+    return Dismissible(
+      key: Key('journal_${journal.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.red.shade400,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 22),
+      ),
+      confirmDismiss: (direction) => _showDeleteConfirmDialog(),
+      onDismissed: (direction) async {
+        final idx = _myJournals.indexWhere((j) => j.id == journal.id);
+        if (idx != -1) {
+          final removed = _myJournals[idx];
+          setState(() => _myJournals.removeAt(idx));
+          try {
+            await JournalService.deleteJournal(journal.id);
+          } catch (e) {
+            setState(() => _myJournals.insert(idx, removed));
+          }
+        }
+      },
+      child: GestureDetector(
+        onTap: () async {
+          final updated = await Navigator.push(context, MaterialPageRoute(
+              builder: (context) => JournalDetailScreen(journal: journal)));
+          if (updated == true) await _loadJournals();
+        },
+        child: Container(
+          width: 175,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.border),
+            boxShadow: [BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                height: 110, width: double.infinity,
+                child: Stack(fit: StackFit.expand, children: [
+                  journal.coverImageUrl != null
+                      ? Image.network(journal.coverImageUrl!, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _buildFallbackCover(journal))
+                      : _buildFallbackCover(journal),
+                  Positioned(
+                    top: 8, right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.92),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                          journal.visibility == 'PUBLIC' ? 'Açık' : 'Özel',
+                          style: AppTheme.sansBody(
+                              size: 9, weight: FontWeight.w700,
+                              color: AppTheme.textPrimary)),
+                    ),
+                  ),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(journal.title,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.playfairDisplay(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary)),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('${journal.createdAt.day}.${journal.createdAt.month}.${journal.createdAt.year}',
+                              style: AppTheme.sansBody(
+                                  size: 10, color: AppTheme.textSecondary)),
+                          Text('${journal.saveCount} kayıt',
+                              style: AppTheme.sansBody(
+                                  size: 10, color: AppTheme.textSecondary)),
+                        ],
+                      ),
+                    ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavedSection() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text('Kaydettiklerim',
+            style: GoogleFonts.playfairDisplay(
+                fontSize: 18, fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary)),
+      ),
+      const SizedBox(height: 10),
+      ..._savedJournals.map((journal) => Dismissible(
+        key: Key('saved_${journal.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          decoration: BoxDecoration(
+              color: Colors.red.shade400,
+              borderRadius: BorderRadius.circular(16)),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          child: const Icon(Icons.bookmark_remove_outlined,
+              color: Colors.white, size: 22),
+        ),
+        onDismissed: (direction) async {
+          try {
+            await JournalService.toggleSave(journal.id);
+            setState(() => _savedJournals.remove(journal));
+          } catch (e) {
+            setState(() => _savedJournals.add(journal));
+          }
+        },
+        child: GestureDetector(
+          onTap: () async {
+            await Navigator.push(context, MaterialPageRoute(
+                builder: (context) =>
+                    ExploreJournalScreen(journal: journal)));
+            await _loadJournals();
+          },
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.border, width: 0.5),
+              boxShadow: [AppTheme.softShadow],
+            ),
+            child: Row(children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16)),
+                child: SizedBox(
+                  width: 72, height: 72,
+                  child: journal.coverImageUrl != null
+                      ? Image.network(journal.coverImageUrl!, fit: BoxFit.cover)
+                      : _buildFallbackCover(journal),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(journal.title,
+                    style: GoogleFonts.playfairDisplay(
+                        fontSize: 13, fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary)),
+                const SizedBox(height: 3),
+                Text('@${journal.username ?? ''}',
+                    style: AppTheme.sansBody(
+                        size: 11, color: AppTheme.terracotta,
+                        weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Row(children: [
+                  Icon(Icons.visibility_outlined, size: 11,
+                      color: AppTheme.textSecondary.withOpacity(0.6)),
+                  const SizedBox(width: 3),
+                  Text('${journal.viewCount}',
+                      style: AppTheme.sansBody(size: 10,
+                          color: AppTheme.textSecondary.withOpacity(0.6))),
+                  const SizedBox(width: 8),
+                  Icon(Icons.bookmark_outline, size: 11,
+                      color: AppTheme.textSecondary.withOpacity(0.6)),
+                  const SizedBox(width: 3),
+                  Text('${journal.saveCount}',
+                      style: AppTheme.sansBody(size: 10,
+                          color: AppTheme.textSecondary.withOpacity(0.6))),
+                ]),
+              ])),
+              const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: Icon(Icons.chevron_right,
+                    color: AppTheme.textSecondary, size: 18),
+              ),
+            ]),
+          ),
+        ),
+      )).toList(),
+    ]);
+  }
+
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Container(
+            width: 72, height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.navDark,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Icon(Icons.book_outlined, color: Colors.white, size: 32),
+          ),
+          const SizedBox(height: 16),
+          Text('İlk ajandanı oluştur',
+              style: GoogleFonts.playfairDisplay(
+                  fontSize: 18, fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary)),
+          const SizedBox(height: 8),
+          Text('Gezi anılarını kaydetmeye başla',
+              textAlign: TextAlign.center,
+              style: AppTheme.sansBody(color: AppTheme.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _showCreateJournalDialog,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Yeni Ajanda Oluştur'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.terracotta,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      extendBody: true,
+      body: _buildBody(),
+      bottomNavigationBar: AppNavBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          if (index == 5) {
+            _showCreateJournalDialog();
+          } else {
+            setState(() => _selectedIndex = index);
+          }
+        },
+      ),
+    );
+  }
+}
+
+class _DotGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFC4956A).withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    const spacing = 14.0;
+    for (double x = spacing; x < size.width; x += spacing) {
+      for (double y = spacing; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.0, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

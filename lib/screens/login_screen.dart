@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
-import 'verify_screen.dart';
-import 'forgot_password_screen.dart';
+import '../widgets/error_view.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,33 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  Future<void> _login() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final result = await AuthService.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-      await StorageService.saveToken(result['token']);
-      await StorageService.saveUsername(result['username']);
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -53,129 +26,242 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _login() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      setState(() => _errorMessage = 'Lütfen e-posta ve şifrenizi girin');
+      return;
+    }
+    setState(() { _isLoading = true; _errorMessage = null; });
+    try {
+      final result = await AuthService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      await StorageService.saveToken(result['token']);
+      await StorageService.saveUsername(result['username']);
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+    } catch (e) {
+      setState(() => _errorMessage =
+          e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 60),
-              Center(
-                child: Container(
-                  width: 64,
-                  height: 64,
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppTheme.navDark,
+            borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(36)),
+            boxShadow: [BoxShadow(
+                color: AppTheme.navDark.withOpacity(0.4),
+                blurRadius: 20, offset: const Offset(0, 8))],
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+              child: Column(children: [
+                Container(
+                  width: 72, height: 72,
                   decoration: BoxDecoration(
-                    color: AppTheme.terracottaLight,
-                    borderRadius: BorderRadius.circular(16),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.35), width: 3),
+                    boxShadow: [BoxShadow(
+                        color: Colors.black.withOpacity(0.25),
+                        blurRadius: 14, offset: const Offset(0, 6))],
                   ),
-                  child: Image.asset('assets/images/logo.png', width: 64, height: 64),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Center(
-                child: Text(
-                  'MemoryLane',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'senin yolculuğun, senin hikayen',
-                  style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-                ),
-              ),
-              const SizedBox(height: 56),
-              Text(
-                'E-POSTA VEYA KULLANICI ADI',
-                style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'E-posta veya kullanıcı adı',
-                  hintStyle: TextStyle(color: AppTheme.textSecondary),
-                  filled: true,
-                  fillColor: AppTheme.terracottaLight,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'ŞİFRE',
-                style: AppTheme.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  hintText: 'Şifreniz',
-                  hintStyle: TextStyle(color: AppTheme.textSecondary),
-                  filled: true,
-                  fillColor: AppTheme.terracottaLight,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      color: AppTheme.textSecondary,
+                  child: ClipOval(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Image.asset('assets/images/logo.png',
+                          fit: BoxFit.contain),
                     ),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Text('Seyahood', style: GoogleFonts.playfairDisplay(
+                    fontSize: 26, fontWeight: FontWeight.w900,
+                    color: Colors.white, letterSpacing: -0.5)),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.15)),
+                  ),
+                  child: Text('senin yolculuğun, senin hikayen',
+                      style: AppTheme.sansBody(
+                          size: 12, weight: FontWeight.w600,
+                          color: const Color(0xFFFFD5C2))),
+                ),
+              ]),
+            ),
+          ),
+        ),
+
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(28, 30, 28, 28),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _buildLabel('E-posta veya kullanıcı adı'),
+              const SizedBox(height: 8),
+              _buildTextField(
+                controller: _emailController,
+                hint: 'ornek@mail.com',
+                keyboardType: TextInputType.emailAddress,
+                prefixIcon: Icons.alternate_email_rounded,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
+              _buildLabel('Şifre'),
+              const SizedBox(height: 8),
+              _buildTextField(
+                controller: _passwordController,
+                hint: '••••••••',
+                obscure: _obscurePassword,
+                prefixIcon: Icons.lock_outline_rounded,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: AppTheme.textSecondary, size: 20),
+                  onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
-                  child: Text('Şifreni mi unuttun?', style: TextStyle(color: AppTheme.terracotta, fontSize: 14)),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/forgot-password'),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  child: Text('Şifreni mi unuttun?',
+                      style: AppTheme.sansBody(
+                          size: 13, weight: FontWeight.w700,
+                          color: AppTheme.terracotta)),
                 ),
               ),
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 14), textAlign: TextAlign.center),
-                ),
-              const SizedBox(height: 8),
+
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 10),
+                ErrorCard(message: _errorMessage),
+              ],
+
+              const SizedBox(height: 24),
+
               SizedBox(
-                width: double.infinity,
-                height: 52,
+                width: double.infinity, height: 54,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.terracotta,
+                    backgroundColor: AppTheme.navDark,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     elevation: 0,
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Giriş Yap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                      ? const SizedBox(width: 22, height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.2))
+                      : Text('Giriş Yap', style: AppTheme.sansBody(
+                      size: 15, weight: FontWeight.w800,
+                      color: Colors.white)),
                 ),
               ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Hesabın yok mu? ', style: TextStyle(color: AppTheme.textSecondary)),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/register'),
-                    child: Text('Kayıt Ol', style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
+
+              const SizedBox(height: 18),
+
+              Row(children: [
+                Expanded(child: Divider(
+                    color: AppTheme.border, thickness: 1)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('veya', style: AppTheme.sansBody(
+                      size: 12, weight: FontWeight.w600,
+                      color: AppTheme.textSecondary)),
+                ),
+                Expanded(child: Divider(
+                    color: AppTheme.border, thickness: 1)),
+              ]),
+
+              const SizedBox(height: 18),
+
+              SizedBox(
+                width: double.infinity, height: 54,
+                child: OutlinedButton(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/register'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textPrimary,
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: AppTheme.border, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                   ),
-                ],
+                  child: Text('Hesap oluştur', style: AppTheme.sansBody(
+                      size: 15, weight: FontWeight.w700,
+                      color: AppTheme.textPrimary)),
+                ),
               ),
-            ],
+            ]),
           ),
         ),
+      ]),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(text, style: AppTheme.sansBody(
+        size: 13, weight: FontWeight.w700,
+        color: const Color(0xFF523F31)));
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+    bool obscure = false,
+    IconData? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      style: AppTheme.sansBody(size: 14, weight: FontWeight.w600),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: AppTheme.sansBody(size: 13, color: AppTheme.textMuted),
+        filled: true, fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppTheme.border, width: 1.5)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppTheme.border, width: 1.5)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: AppTheme.terracotta, width: 2)),
+        prefixIcon: prefixIcon != null
+            ? Icon(prefixIcon, color: AppTheme.terracotta, size: 20) : null,
+        suffixIcon: suffixIcon,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 16),
       ),
     );
   }

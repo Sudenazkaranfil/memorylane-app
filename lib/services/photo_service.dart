@@ -21,7 +21,6 @@ class PhotoService {
       await http.MultipartFile.fromPath(
         'file',
         file.path,
-        contentType: MediaType('image', 'jpeg'),
       ),
     );
 
@@ -34,5 +33,19 @@ class PhotoService {
     } else {
       throw Exception('Fotoğraf yüklenemedi');
     }
+  }
+
+  static Future<String> uploadDirectToCloudinary(String filePath) async {
+    final uri = Uri.parse('https://api.cloudinary.com/v1_1/xnzocixe/image/upload');
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['upload_preset'] = 'memorylane_unsigned';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body);
+      return data['secure_url'];
+    }
+    throw Exception('Cloudinary yükleme başarısız');
   }
 }

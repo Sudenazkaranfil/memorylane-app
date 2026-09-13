@@ -97,7 +97,7 @@ class JournalService {
       Uri.parse('$baseUrl/journals/$journalId/cover'),
     );
     request.headers['Authorization'] = 'Bearer $token';
-    request.files.add(await http.MultipartFile.fromPath('file', filePath, contentType: MediaType('image', 'jpeg')));
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
     final response = await request.send();
     final body = await response.stream.bytesToString();
     if (response.statusCode == 200) {
