@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MemoryLane',
+      title: 'Seyahood',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
       initialRoute: '/',

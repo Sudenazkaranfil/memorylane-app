@@ -628,10 +628,10 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       final bytes = byteData!.buffer.asUint8List();
       final watermarkedBytes = await _addWatermark(bytes, premium: _isPremium);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/memorylane_page.png');
+      final file = File('${dir.path}/seyahood_page.png');
       await file.writeAsBytes(watermarkedBytes);
       await Share.shareXFiles([XFile(file.path)],
-          text: 'MemoryLane\'da bir anım ✈️');
+          text: 'Seyahood\'da bir anım ✈️');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Paylaşılamadı!')));
@@ -651,10 +651,10 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       final watermarkedBytes =
       await _addWatermark(storyBytes, premium: _isPremium, isStory: true);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/memorylane_story.png');
+      final file = File('${dir.path}/seyahood_story.png');
       await file.writeAsBytes(watermarkedBytes);
       await Share.shareXFiles([XFile(file.path)],
-          text: 'MemoryLane\'da bir anım ✈️');
+          text: 'Seyahood\'da bir anım ✈️');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Paylaşılamadı!')));
@@ -674,7 +674,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     if (premium) {
       final textPainter = TextPainter(
         text: TextSpan(
-          text: 'MemoryLane',
+          text: 'Seyahood',
           style: TextStyle(color: Colors.white.withOpacity(0.6),
               fontSize: w * 0.03, fontWeight: FontWeight.w500),
         ),
@@ -690,7 +690,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
           Rect.fromLTWH(0, h - bannerHeight, w, bannerHeight), paint);
       final textPainter = TextPainter(
         text: TextSpan(
-          text: '✈️  MemoryLane ile oluşturuldu',
+          text: '✈️  Seyahood ile oluşturuldu',
           style: TextStyle(color: Colors.white,
               fontSize: w * 0.038, fontWeight: FontWeight.w600),
         ),

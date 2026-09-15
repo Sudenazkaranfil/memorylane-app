@@ -636,7 +636,7 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
                   try {
                     final response = await http.get(
                       Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(value)}&format=json&limit=5&accept-language=tr'),
-                      headers: {'User-Agent': 'MemoryLane/1.0'},
+                      headers: {'User-Agent': 'Seyahood/1.0'},
                     );
                     if (response.statusCode == 200) {
                       final data = jsonDecode(response.body) as List;

@@ -1,4 +1,4 @@
-# MemoryLane — Mobile App
+# Seyahood — Mobile App
 
 Flutter ile geliştirilmiş dijital seyahat ajandası uygulaması. Kullanıcılar gezilerini sayfa sayfa, scrapbook tarzında kaydedebilir, haritada görebilir ve keşfedebilir.
 
@@ -40,7 +40,7 @@ Flutter ile geliştirilmiş dijital seyahat ajandası uygulaması. Kullanıcıla
 1. Repoyu klonla
 ```bash
 git clone https://github.com/Sudenazkaranfil/memorylane-app.git
-cd memorylane_app
+cd memorylane-app
 ```
 
 2. Bağımlılıkları yükle
@@ -62,4 +62,4 @@ _Yakında eklenecek_
 
 ## Backend
 
-Bu uygulama [MemoryLane Backend](https://github.com/Sudenazkaranfil/memorylane) ile çalışır.
+Bu uygulama [Seyahood Backend](https://github.com/Sudenazkaranfil/memorylane) ile çalışır.
