@@ -2,10 +2,11 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import '../config/api_config.dart';
 import 'storage_service.dart';
 
 class PhotoService {
-  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static Future<String> uploadPhoto(String filePath, int entryId) async {
     final token = await StorageService.getToken();

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../theme/app_theme.dart';
+import '../config/api_config.dart';
 import '../services/storage_service.dart';
 import '../services/journal_service.dart';
 import '../models/journal.dart';
@@ -31,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   bool _hasError = false;
 
-  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
+import '../config/api_config.dart';
 import '../services/storage_service.dart';
 import '../widgets/error_view.dart';
 
@@ -29,7 +30,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isSaving = false;
   bool _hasError = false;
 
-  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {

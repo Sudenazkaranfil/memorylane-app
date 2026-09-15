@@ -11,8 +11,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/storage_service.dart';
 import '../services/journal_service.dart';
+import '../services/subscription_service.dart';
 import '../models/journal.dart';
 import '../theme/app_theme.dart';
+import '../config/api_config.dart';
 import 'edit_profile_screen.dart';
 import 'help_screen.dart';
 import 'follow_list_screen.dart';
@@ -46,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final GlobalKey _profileCardKey = GlobalKey();
   bool _hasError = false;
 
-  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   final List<Map<String, dynamic>> _coverColors = [
     {'color': const Color(0xFFF5EFE8), 'label': 'Krem'},
@@ -226,6 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (shouldLogout == true) {
       await StorageService.clearAll();
+      SubscriptionService.instance.clear();
       if (mounted) Navigator.pushReplacementNamed(context, '/login');
     }
   }

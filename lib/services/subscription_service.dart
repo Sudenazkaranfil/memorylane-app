@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import 'storage_service.dart';
 
 class SubscriptionStatus {
@@ -17,6 +19,14 @@ class SubscriptionStatus {
     required this.pageLimit,
   });
 
+  static const SubscriptionStatus free = SubscriptionStatus(
+    plan: 'FREE',
+    isPlus: false,
+    isPro: false,
+    journalLimit: 5,
+    pageLimit: 15,
+  );
+
   factory SubscriptionStatus.fromJson(Map<String, dynamic> json) {
     return SubscriptionStatus(
       plan: json['plan']?.toString() ?? 'FREE',
@@ -28,30 +38,63 @@ class SubscriptionStatus {
   }
 }
 
-class SubscriptionService {
-  static const String baseUrl = 'https://memorylane-wk1y.onrender.com';
+/// Uygulama genelinde tek bir abonelik durumu kaynağı.
+///
+/// Home, profil, canvas editör gibi birden çok ekran aynı anda "kullanıcı
+/// PRO mu" bilgisine ihtiyaç duyduğu için her ekranın kendi başına
+/// `/subscription/status` çağırması yerine burada kısa süreli önbelleğe
+/// alınır ve `ChangeNotifier` ile dinleyen widget'lar güncellenir.
+class SubscriptionService extends ChangeNotifier {
+  SubscriptionService._internal();
+  static final SubscriptionService instance = SubscriptionService._internal();
 
-  static Future<SubscriptionStatus> getStatus() async {
+  static const _cacheTtl = Duration(minutes: 5);
+
+  SubscriptionStatus? _status;
+  DateTime? _lastFetchedAt;
+
+  /// Ağ isteği beklemeden anlık okunabilecek son bilinen durum.
+  SubscriptionStatus get cachedStatus => _status ?? SubscriptionStatus.free;
+
+  bool get _isCacheFresh =>
+      _status != null &&
+      _lastFetchedAt != null &&
+      DateTime.now().difference(_lastFetchedAt!) < _cacheTtl;
+
+  Future<SubscriptionStatus> getStatus({bool forceRefresh = false}) async {
+    if (!forceRefresh && _isCacheFresh) return _status!;
+
     final token = await StorageService.getToken();
     final response = await http.get(
-      Uri.parse('$baseUrl/subscription/status'),
+      Uri.parse('${ApiConfig.baseUrl}/subscription/status'),
       headers: {'Authorization': 'Bearer $token'},
     );
     if (response.statusCode == 200) {
-      return SubscriptionStatus.fromJson(jsonDecode(response.body));
+      _status = SubscriptionStatus.fromJson(jsonDecode(response.body));
+      _lastFetchedAt = DateTime.now();
+      notifyListeners();
+      return _status!;
     }
     throw Exception('Abonelik bilgisi alınamadı');
   }
 
-  static Future<void> registerCustomer(String customerId) async {
+  Future<void> registerCustomer(String customerId) async {
     final token = await StorageService.getToken();
     await http.post(
-      Uri.parse('$baseUrl/subscription/register-customer'),
+      Uri.parse('${ApiConfig.baseUrl}/subscription/register-customer'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({'customerId': customerId}),
     );
+  }
+
+  /// Kullanıcı çıkış yaptığında önbelleği temizler, aksi halde bir
+  /// sonraki kullanıcı kısa süreliğine öncekinin planını görebilir.
+  void clear() {
+    _status = null;
+    _lastFetchedAt = null;
+    notifyListeners();
   }
 }

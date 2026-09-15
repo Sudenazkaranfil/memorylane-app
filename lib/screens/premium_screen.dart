@@ -18,49 +18,56 @@ class _PremiumScreenState extends State<PremiumScreen> {
   static const List<_ComparisonFeature> _features = [
     _ComparisonFeature(
       icon: Icons.auto_stories_rounded,
-      label: 'Ajanda sayısı',
+      label: 'Ajanda',
       free: '5',
       plus: '20',
       pro: 'Sınırsız',
     ),
     _ComparisonFeature(
       icon: Icons.description_outlined,
-      label: 'Ajanda başına sayfa',
+      label: 'Sayfa / ajanda',
       free: '15',
       plus: '40',
       pro: 'Sınırsız',
     ),
     _ComparisonFeature(
-      icon: Icons.block_flipped,
-      label: 'Reklamsız deneyim',
+      icon: Icons.explore_outlined,
+      label: 'Gezgin rozeti',
+      free: null,
+      plus: '🧭 Gümüş',
+      pro: '🧭 Altın',
+    ),
+    _ComparisonFeature(
+      icon: Icons.image_outlined,
+      label: 'Filigransız paylaşım',
       free: null,
       plus: '✓',
       pro: '✓',
     ),
     _ComparisonFeature(
-      icon: Icons.font_download_outlined,
-      label: 'Premium canvas fontları',
-      free: null,
-      plus: null,
-      pro: '✓',
-    ),
-    _ComparisonFeature(
       icon: Icons.high_quality_outlined,
-      label: '4K kalitede dışa aktarma',
-      free: null,
-      plus: null,
-      pro: '✓',
+      label: 'Export kalitesi',
+      free: '1x',
+      plus: '2x HD',
+      pro: '3x 4K',
     ),
     _ComparisonFeature(
       icon: Icons.dashboard_customize_outlined,
-      label: 'Paylaşım şablonları',
-      free: '2/6',
-      plus: '4/6',
-      pro: '6/6',
+      label: 'PRO şablonlar',
+      free: null,
+      plus: '1 şablon',
+      pro: 'Tümü',
     ),
     _ComparisonFeature(
-      icon: Icons.support_agent_rounded,
-      label: 'Öncelikli destek',
+      icon: Icons.font_download_outlined,
+      label: 'PRO canvas fontları',
+      free: null,
+      plus: null,
+      pro: '✓',
+    ),
+    _ComparisonFeature(
+      icon: Icons.travel_explore_rounded,
+      label: 'AI konum tahmini',
       free: null,
       plus: null,
       pro: '✓',
@@ -75,7 +82,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   Future<void> _loadStatus() async {
     try {
-      final status = await SubscriptionService.getStatus();
+      final status = await SubscriptionService.instance.getStatus();
       if (!mounted) return;
       setState(() {
         _currentPlan = status.plan;
@@ -101,7 +108,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
             width: 56, height: 56,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppTheme.terracottaLight,
               shape: BoxShape.circle,
             ),
@@ -116,8 +123,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   color: AppTheme.textPrimary)),
           const SizedBox(height: 8),
           Text(
-              'Satın alma altyapısı tamamlandığında bu plana '
-              'buradan hemen abone olabileceksin.',
+              'Satın alma altyapısı (RevenueCat) tamamlandığında bu plana '
+              'buradan 7 gün ücretsiz deneme ile başlayabileceksin.',
               textAlign: TextAlign.center,
               style: AppTheme.sansBody(
                   size: 13, color: AppTheme.textSecondary)),
@@ -158,7 +165,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
               _buildHeader(),
               const SizedBox(height: 20),
               _buildBillingToggle(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+              _buildTrialBanner(),
+              const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(children: [
@@ -166,12 +175,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     planKey: 'PLUS',
                     title: 'Seyahood Plus',
                     ctaLabel: "Plus'a Geç",
-                    emoji: '🌿',
+                    emoji: '🧭',
                     color: AppTheme.sage,
-                    monthlyPrice: 49.99,
-                    yearlyPrice: 479.99,
+                    monthlyPrice: 39.99,
+                    yearlyPrice: 419.99,
                     highlight: false,
-                    tagline: 'Daha fazla ajanda ve reklamsız deneyim',
+                    tagline: 'Daha fazla ajanda ve gümüş gezgin rozeti',
                   ),
                   const SizedBox(height: 16),
                   _buildPlanCard(
@@ -180,8 +189,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ctaLabel: "PRO'ya Geç",
                     emoji: '👑',
                     color: AppTheme.terracotta,
-                    monthlyPrice: 99.99,
-                    yearlyPrice: 959.99,
+                    monthlyPrice: 59.99,
+                    yearlyPrice: 599.99,
                     highlight: true,
                     tagline: 'Sınırsız ajanda ve tüm premium özellikler',
                   ),
@@ -273,7 +282,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       ),
       child: Row(children: [
         Expanded(child: _billingOption('Aylık', !_isYearly, false)),
-        Expanded(child: _billingOption('Yıllık · %20 indirim', _isYearly, true)),
+        Expanded(child: _billingOption('Yıllık', _isYearly, true)),
       ]),
     );
   }
@@ -294,6 +303,20 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   color: selected ? Colors.white : AppTheme.textSecondary)),
         ),
       ),
+    );
+  }
+
+  Widget _buildTrialBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.card_giftcard_rounded,
+            size: 14, color: AppTheme.sage),
+        const SizedBox(width: 6),
+        Text('Her iki planda da 7 gün ücretsiz deneme',
+            style: AppTheme.sansBody(
+                size: 12, weight: FontWeight.w700, color: AppTheme.sage)),
+      ]),
     );
   }
 
@@ -379,7 +402,25 @@ class _PremiumScreenState extends State<PremiumScreen> {
               Text(period,
                   style: AppTheme.sansBody(
                       size: 13, color: AppTheme.textSecondary)),
+              if (_isYearly) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.sage.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                      '%${(100 - (yearlyPrice / (monthlyPrice * 12) * 100)).round()} indirim',
+                      style: const TextStyle(fontSize: 10,
+                          fontWeight: FontWeight.w800, color: AppTheme.sage)),
+                ),
+              ],
             ]),
+        const SizedBox(height: 4),
+        Text('7 gün ücretsiz dene, istediğin zaman iptal et',
+            style: AppTheme.sansBody(size: 11, color: AppTheme.textMuted)),
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
@@ -480,8 +521,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
           size: 16, color: AppTheme.sage);
     }
     return Text(value,
+        textAlign: TextAlign.center,
         style: const TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w700,
+            fontSize: 10, fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary));
   }
 
