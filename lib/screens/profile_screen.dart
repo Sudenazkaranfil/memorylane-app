@@ -17,6 +17,7 @@ import 'edit_profile_screen.dart';
 import 'help_screen.dart';
 import 'follow_list_screen.dart';
 import 'journal_detail_screen.dart';
+import 'premium_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
 
@@ -1308,6 +1309,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             blurRadius: 12, offset: const Offset(0, 2))],
       ),
       child: Column(children: [
+        _buildMenuItem(Icons.workspace_premium_rounded,
+            'Seyahood Premium', () {
+              Navigator.push(context, MaterialPageRoute(
+                  builder: (context) => const PremiumScreen()));
+            }),
+        _buildMenuDivider(),
         _buildMenuItem(Icons.notifications_active_outlined,
             'Bildirimler & Hatırlatıcılar', () {
               ScaffoldMessenger.of(context)
