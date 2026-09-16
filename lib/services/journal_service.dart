@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import '../models/journal.dart';
 import '../config/api_config.dart';
 import 'storage_service.dart';
+import 'subscription_service.dart';
 
 class JournalService {
   static const String baseUrl = ApiConfig.baseUrl;
@@ -117,6 +118,9 @@ class JournalService {
     );
     if (response.statusCode == 200) {
       return Journal.fromJson(jsonDecode(response.body));
+    } else if (response.statusCode == 403 &&
+        jsonDecode(response.body)['error'] == 'JOURNAL_LIMIT_REACHED') {
+      throw const LimitReachedException('journal');
     } else {
       throw Exception('Ajanda oluşturulamadı');
     }

@@ -4,6 +4,14 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'storage_service.dart';
 
+/// Backend'in JOURNAL_LIMIT_REACHED / PAGE_LIMIT_REACHED hatalarına karşılık
+/// gelir; UI bunu yakalayıp genel bir hata yerine premium yönlendirmesi
+/// gösterir.
+class LimitReachedException implements Exception {
+  final String limitType; // 'journal' | 'page'
+  const LimitReachedException(this.limitType);
+}
+
 class SubscriptionStatus {
   final String plan;
   final bool isPlus;

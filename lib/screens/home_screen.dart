@@ -6,6 +6,8 @@ import '../theme/app_theme.dart';
 import '../config/api_config.dart';
 import '../services/storage_service.dart';
 import '../services/journal_service.dart';
+import '../services/subscription_service.dart';
+import '../widgets/limit_reached_sheet.dart';
 import '../models/journal.dart';
 import '../widgets/app_nav_bar.dart';
 import 'journal_detail_screen.dart';
@@ -93,6 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context) => JournalDetailScreen(journal: journal)));
         await _loadJournals();
       }
+    } on LimitReachedException catch (_) {
+      if (mounted) showLimitReachedSheet(context, limitType: 'journal');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ajanda oluşturulamadı')));

@@ -9,6 +9,8 @@ import '../theme/app_theme.dart';
 import '../models/entry.dart';
 import '../services/entry_service.dart';
 import '../services/photo_service.dart';
+import '../services/subscription_service.dart';
+import '../widgets/limit_reached_sheet.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class _StickerItem {
@@ -281,6 +283,11 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
           content: Text('Sayfa başarıyla kaydedildi! 🌿'),
           backgroundColor: Color(0xFF1C110A),
         ));
+      }
+    } on LimitReachedException catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        showLimitReachedSheet(context, limitType: 'page');
       }
     } catch (e) {
       if (mounted) {
