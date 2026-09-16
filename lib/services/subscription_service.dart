@@ -86,6 +86,35 @@ class SubscriptionService extends ChangeNotifier {
     throw Exception('Abonelik bilgisi alınamadı');
   }
 
+  static const Map<String, String> _redeemErrorMessages = {
+    'CODE_NOT_FOUND': 'Böyle bir kod bulunamadı',
+    'CODE_INACTIVE': 'Bu kod artık aktif değil',
+    'CODE_EXPIRED': 'Bu kodun süresi dolmuş',
+    'CODE_LIMIT_REACHED': 'Bu kod kullanım limitine ulaşmış',
+    'CODE_ALREADY_USED': 'Bu kodu daha önce kullandın',
+    'CODE_REQUIRED': 'Lütfen bir kod gir',
+  };
+
+  /// Bir promosyon kodunu kullanıcı adına kullanır; başarılı olursa
+  /// önbelleği hemen tazeler ki uygulamadaki tüm rozet/buton/kısıtlama
+  /// UI'ları anında güncellensin.
+  Future<SubscriptionStatus> redeemCode(String code) async {
+    final token = await StorageService.getToken();
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/subscription/redeem-code'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'code': code}),
+    );
+    if (response.statusCode == 200) {
+      return getStatus(forceRefresh: true);
+    }
+    final error = jsonDecode(response.body)['error'] as String?;
+    throw Exception(_redeemErrorMessages[error] ?? 'Kod kullanılamadı');
+  }
+
   Future<void> registerCustomer(String customerId) async {
     final token = await StorageService.getToken();
     await http.post(

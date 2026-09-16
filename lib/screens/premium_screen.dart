@@ -14,6 +14,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
   bool _isYearly = false;
   bool _isLoading = true;
   String _currentPlan = 'FREE';
+  final _promoCodeController = TextEditingController();
+  bool _isRedeemingCode = false;
 
   static const List<_ComparisonFeature> _features = [
     _ComparisonFeature(
@@ -80,6 +82,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
     _loadStatus();
   }
 
+  @override
+  void dispose() {
+    _promoCodeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadStatus() async {
     try {
       final status = await SubscriptionService.instance.getStatus();
@@ -91,6 +99,29 @@ class _PremiumScreenState extends State<PremiumScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _redeemPromoCode() async {
+    final code = _promoCodeController.text.trim();
+    if (code.isEmpty) return;
+    setState(() => _isRedeemingCode = true);
+    try {
+      final status = await SubscriptionService.instance.redeemCode(code);
+      if (!mounted) return;
+      setState(() {
+        _currentPlan = status.plan;
+        _isRedeemingCode = false;
+        _promoCodeController.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              '🎉 Kod kullanıldı! Artık ${_planLabel(status.plan)} üyesisin.')));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isRedeemingCode = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', ''))));
     }
   }
 
@@ -198,6 +229,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               const SizedBox(height: 28),
               _buildComparisonTable(),
+              const SizedBox(height: 20),
+              _buildPromoCodeSection(),
               const SizedBox(height: 16),
               _buildRestoreRow(),
               SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
@@ -525,6 +558,73 @@ class _PremiumScreenState extends State<PremiumScreen> {
         style: const TextStyle(
             fontSize: 10, fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary));
+  }
+
+  Widget _buildPromoCodeSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: AppTheme.cardDecoration,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.redeem_rounded, size: 18, color: AppTheme.terracotta),
+          const SizedBox(width: 8),
+          Text('Promosyon Kodun mu Var?',
+              style: GoogleFonts.playfairDisplay(
+                  fontSize: 15, fontWeight: FontWeight.w800,
+                  color: AppTheme.textPrimary)),
+        ]),
+        const SizedBox(height: 4),
+        Text('Hediye ya da kampanya kodunu gir, planın hemen aktifleşsin.',
+            style: AppTheme.sansBody(size: 12, color: AppTheme.textSecondary)),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _promoCodeController,
+              textCapitalization: TextCapitalization.characters,
+              style: AppTheme.sansBody(size: 14, weight: FontWeight.w700),
+              decoration: InputDecoration(
+                hintText: 'Örn. SEYAHOOD2026',
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                filled: true,
+                fillColor: AppTheme.background,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: AppTheme.border)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: AppTheme.border)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: AppTheme.terracotta, width: 1.5)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: _isRedeemingCode ? null : _redeemPromoCode,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.navDark,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _isRedeemingCode
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Kullan',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+      ]),
+    );
   }
 
   Widget _buildRestoreRow() {
