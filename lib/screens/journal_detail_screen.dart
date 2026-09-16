@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import '../widgets/share_story_modal.dart';
 
 class JournalDetailScreen extends StatefulWidget {
   final Journal journal;
@@ -737,60 +738,27 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   }
 
   void _showShareOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          left: 24, right: 24, top: 16,
-          bottom: MediaQuery.of(context).padding.bottom + 24,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Center(child: Container(width: 40, height: 4,
-                  decoration: BoxDecoration(color: AppTheme.border,
-                      borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 20),
-              Text('Anıyı Paylaş',
-                  style: GoogleFonts.playfairDisplay(
-                      fontSize: 19, fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
-              const SizedBox(height: 16),
-              _buildShareOption(Icons.image_outlined, 'Sayfayı Paylaş',
-                  'Standart kare/orijinal boyut', false, _sharePage),
-              const SizedBox(height: 10),
-              _buildShareOption(Icons.phone_android_outlined,
-                  'Hikaye Olarak Paylaş', 'Instagram 9:16 formatı',
-                  false, _shareStory),
-              const SizedBox(height: 18),
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                  decoration: BoxDecoration(color: AppTheme.terracotta,
-                      borderRadius: BorderRadius.circular(20)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.star_rounded, color: Colors.white, size: 12),
-                    SizedBox(width: 4),
-                    Text('PRO', style: TextStyle(color: Colors.white,
-                        fontSize: 10, fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-                const SizedBox(width: 8),
-                Text('Özel formatlar', style: AppTheme.sansBody(
-                    size: 13, weight: FontWeight.w600,
-                    color: AppTheme.textSecondary)),
-              ]),
-              const SizedBox(height: 10),
-              _buildShareOption(Icons.star_outline, 'Watermark\'sız Paylaş',
-                  'Logosuz temiz görsel', true, () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(const SnackBar(content: Text('Yakında!')));
-                  }),
-            ]),
-      ),
+    final entry = _entries.isNotEmpty ? _entries[_currentPage] : null;
+    final username = widget.journal.username ?? '';
+    final locationName = entry?.locationName ?? widget.journal.title;
+    final date = entry?.date != null
+        ? '${entry!.date!.day}.${entry.date!.month}.${entry.date!.year}'
+        : '';
+    final photoUrl = entry?.photoUrls.isNotEmpty == true
+        ? entry!.photoUrls.first
+        : null;
+
+    Navigator.pop(context);
+    ShareStoryModal.show(
+      context,
+      journalTitle: widget.journal.title,
+      locationName: locationName,
+      date: date,
+      textContent: entry?.textContent,
+      photoUrl: photoUrl,
+      username: username,
+      pageIndex: _currentPage,
+      totalPages: _entries.length,
     );
   }
 
