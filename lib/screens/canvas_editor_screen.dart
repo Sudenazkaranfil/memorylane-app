@@ -11,7 +11,12 @@ import '../services/entry_service.dart';
 import '../services/photo_service.dart';
 import '../services/subscription_service.dart';
 import '../widgets/limit_reached_sheet.dart';
+import 'premium_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+const Set<String> kFreeCanvasFonts = {
+  'Plus Jakarta Sans', 'Playfair Display', 'Caveat',
+};
 
 class _StickerItem {
   dynamic model;
@@ -113,6 +118,7 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
   _StickerItem? _clipboard;
   final List<Map<String, dynamic>> _legacyElements = [];
   int? _selectedStickerIndex;
+  bool _isPro = false;
 
   @override
   void initState() {
@@ -120,6 +126,25 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
     if (widget.entry?.canvasData != null) {
       _loadCanvasData(widget.entry!.canvasData!);
     }
+    _loadSubscription();
+  }
+
+  Future<void> _loadSubscription() async {
+    try {
+      final status = await SubscriptionService.instance.getStatus();
+      setState(() => _isPro = status.isPro);
+    } catch (e) {}
+  }
+
+  void _showProFontLockedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Bu font PRO üyelere özel ✨'),
+      action: SnackBarAction(
+        label: "PRO'ya Geç",
+        onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (context) => const PremiumScreen())),
+      ),
+    ));
   }
 
   void _loadCanvasData(String canvasData) {
@@ -397,8 +422,13 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
                     {'name': 'Amatic SC', 'label': 'El Baskı'},
                     {'name': 'Josefin Sans', 'label': 'Minimal'},
                     {'name': 'Raleway', 'label': 'Şık'},
-                  ].map((font) => GestureDetector(
-                    onTap: () => setSheetState(() => selectedFont = font['name']!),
+                  ].map((font) {
+                    final isLocked = !_isPro &&
+                        !kFreeCanvasFonts.contains(font['name']);
+                    return GestureDetector(
+                    onTap: () => isLocked
+                        ? _showProFontLockedMessage()
+                        : setSheetState(() => selectedFont = font['name']!),
                     child: Container(
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -410,13 +440,23 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
                             color: selectedFont == font['name']
                                 ? const Color(0xFFC4956A) : const Color(0xFFEADBCE)),
                       ),
-                      child: Text(font['label']!,
-                          style: GoogleFonts.getFont(font['name']!,
-                              fontSize: 13, fontWeight: FontWeight.w600,
-                              color: selectedFont == font['name']
-                                  ? Colors.white : const Color(0xFF1C110A))),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (isLocked) ...[
+                          const Icon(Icons.lock_rounded,
+                              size: 11, color: Color(0xFF9E8E81)),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(font['label']!,
+                            style: GoogleFonts.getFont(font['name']!,
+                                fontSize: 13, fontWeight: FontWeight.w600,
+                                color: isLocked
+                                    ? const Color(0xFF9E8E81)
+                                    : selectedFont == font['name']
+                                        ? Colors.white
+                                        : const Color(0xFF1C110A))),
+                      ]),
                     ),
-                  )).toList()),
+                  );}).toList()),
                 ),
 
                 const SizedBox(height: 14),

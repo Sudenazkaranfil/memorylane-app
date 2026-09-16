@@ -7,6 +7,7 @@ import '../models/journal.dart';
 import '../models/entry.dart';
 import '../services/entry_service.dart';
 import '../services/journal_service.dart';
+import '../services/subscription_service.dart';
 import 'canvas_editor_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:ui' as ui;
@@ -33,6 +34,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   String? _coverImageUrl;
   final GlobalKey _pageKey = GlobalKey();
   bool _isPremium = false;
+  double _exportPixelRatio = 1.0; // Free: 1x, Plus: 2x HD, PRO: 3x 4K
   bool _hasError = false;
 
   @override
@@ -41,6 +43,17 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     _pageController = PageController();
     _coverImageUrl = widget.journal.coverImageUrl;
     _loadEntries();
+    _loadSubscription();
+  }
+
+  Future<void> _loadSubscription() async {
+    try {
+      final status = await SubscriptionService.instance.getStatus();
+      setState(() {
+        _isPremium = status.isPlus || status.isPro;
+        _exportPixelRatio = status.isPro ? 3.0 : (status.isPlus ? 2.0 : 1.0);
+      });
+    } catch (e) {}
   }
 
   @override
@@ -622,7 +635,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       final boundary = _pageKey.currentContext?.findRenderObject()
       as RenderRepaintBoundary?;
       if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final image = await boundary.toImage(pixelRatio: _exportPixelRatio);
       final byteData =
       await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData!.buffer.asUint8List();
@@ -643,7 +656,7 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       final boundary = _pageKey.currentContext?.findRenderObject()
       as RenderRepaintBoundary?;
       if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final image = await boundary.toImage(pixelRatio: _exportPixelRatio);
       final byteData =
       await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData!.buffer.asUint8List();
