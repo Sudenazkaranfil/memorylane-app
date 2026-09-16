@@ -10,6 +10,10 @@ import '../theme/app_theme.dart';
 import 'user_profile_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import 'user_profile_screen.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../services/storage_service.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -27,6 +31,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   String _sortBy = 'newest';
   String _selectedVibe = 'all';
   bool _hasError = false;
+  List<Map<String, dynamic>> _popularUsers = [];
 
   final List<Map<String, String>> _vibes = [
     {'id': 'all', 'label': '🗺️ Tüm Rotalar'},
@@ -49,20 +54,102 @@ class _ExploreScreenState extends State<ExploreScreen> {
     super.dispose();
   }
 
+  Widget _buildPopularUsers() {
+    if (_popularUsers.isEmpty) return const SizedBox();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Row(children: [
+          const Icon(Icons.people_rounded, size: 16, color: AppTheme.terracotta),
+          const SizedBox(width: 6),
+          Text('Öne Çıkan Gezginler', style: GoogleFonts.playfairDisplay(
+              fontSize: 16, fontWeight: FontWeight.w800,
+              color: AppTheme.textPrimary)),
+        ]),
+      ),
+      SizedBox(
+        height: 100,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: _popularUsers.length,
+          itemBuilder: (context, index) {
+            final user = _popularUsers[index];
+            final username = user['username'] ?? '';
+            final profileImageUrl = user['profileImageUrl'];
+            final followerCount = user['followerCount'] ?? 0;
+
+            return GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (context) =>
+                      UserProfileScreen(username: username))),
+              child: Container(
+                width: 76,
+                margin: const EdgeInsets.only(right: 12),
+                child: Column(children: [
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppTheme.terracottaLight,
+                      border: Border.all(
+                          color: AppTheme.terracotta.withOpacity(0.4), width: 2),
+                    ),
+                    child: ClipOval(
+                      child: profileImageUrl != null
+                          ? Image.network(profileImageUrl, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.person_rounded,
+                              color: AppTheme.terracotta, size: 28))
+                          : Icon(Icons.person_rounded,
+                          color: AppTheme.terracotta, size: 28),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('@$username',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sansBody(
+                          size: 10, weight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
+                  Text('$followerCount takipçi',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sansBody(
+                          size: 9, color: AppTheme.textSecondary)),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 16),
+    ]);
+  }
+
   Future<void> _loadJournals({String? search}) async {
-    setState(() => _isLoading = true);
+    setState(() { _isLoading = true; _hasError = false; });
     try {
-      final journals = await JournalService.getPublicJournals(
-          search: search, sortBy: _sortBy);
+      final allJournals = await JournalService.getPublicJournals();
+      final token = await StorageService.getToken();
+      final usersResponse = await http.get(
+        Uri.parse('https://memorylane-wk1y.onrender.com/users/popular'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (usersResponse.statusCode == 200) {
+        final data = jsonDecode(usersResponse.body);
+        setState(() => _popularUsers = List<Map<String, dynamic>>.from(data));
+      }
+      final filtered = search != null && search.isNotEmpty
+          ? allJournals.where((j) =>
+          j.title.toLowerCase().contains(search.toLowerCase())).toList()
+          : allJournals;
       setState(() {
-        _journals = journals;
+        _journals = filtered;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
+      setState(() { _isLoading = false; _hasError = true; });
     }
   }
 
@@ -333,7 +420,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
               itemCount: _journals.length,
               itemBuilder: (context, index) {
                 if (index == 0 && _searchController.text.isEmpty) {
-                  return _buildFeaturedCard(_journals[0]);
+                  return Column(children: [
+                    _buildPopularUsers(),
+                    _buildFeaturedCard(_journals[0]),
+                  ]);
                 }
                 return _buildJournalCard(_journals[index]);
               },
