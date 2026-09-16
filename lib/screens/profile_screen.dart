@@ -22,6 +22,7 @@ import 'journal_detail_screen.dart';
 import 'premium_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import '../widgets/plan_badge.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -47,6 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _coverImagePath;
   final GlobalKey _profileCardKey = GlobalKey();
   bool _hasError = false;
+  bool _isPlus = false;
+  bool _isPro = false;
 
   static const String baseUrl = ApiConfig.baseUrl;
 
@@ -174,6 +177,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _followingCount = data['followingCount'] ?? 0;
         });
       }
+    } catch (e) {}
+
+    try {
+      final subscription = await SubscriptionService.instance.getStatus();
+      setState(() {
+        _isPlus = subscription.isPlus;
+        _isPro = subscription.isPro;
+      });
     } catch (e) {}
 
     setState(() {
@@ -916,6 +927,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: _getLevelInfo(_journalCount)['color'] as Color)),
                 ]),
               ),
+              if (_isPlus || _isPro) ...[
+                const SizedBox(width: 6),
+                PlanBadge(isPlus: _isPlus, isPro: _isPro),
+              ],
             ]),
 
             const SizedBox(height: 3),

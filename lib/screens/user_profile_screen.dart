@@ -8,6 +8,7 @@ import 'explore_screen.dart';
 import 'follow_list_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import '../widgets/plan_badge.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String username;
@@ -238,6 +239,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             color: levelColor)),
                       ]),
                     ),
+                    PlanBadge(
+                        isPlus: _user?['isPlus'] ?? false,
+                        isPro: _user?['isPro'] ?? false),
                   ],
                 ),
 
