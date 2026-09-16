@@ -14,6 +14,7 @@ import 'journal_detail_screen.dart';
 import 'explore_screen.dart';
 import 'map_screen.dart';
 import 'profile_screen.dart';
+import 'premium_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
 
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Journal> _savedJournals = [];
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isFreePlan = true;
 
   static const String baseUrl = ApiConfig.baseUrl;
 
@@ -59,6 +61,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _firstName = data['firstName'];
         });
       }
+    } catch (e) {}
+
+    try {
+      final subscription = await SubscriptionService.instance.getStatus();
+      setState(() => _isFreePlan = !subscription.isPlus && !subscription.isPro);
     } catch (e) {}
 
     await _loadJournals();
@@ -395,22 +402,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppTheme.textSecondary)),
             ]),
           ]),
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: AppTheme.navDark,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 8, offset: const Offset(0, 2))],
+          Row(children: [
+            if (_isFreePlan) ...[
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => const PremiumScreen())),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('👑', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 4),
+                    Text("PRO'ya Geç", style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                  ]),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.navDark,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.notifications_none_rounded,
+                    color: Color(0xFFEADBCE), size: 20),
+                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Henüz bildirim yok.'))),
+              ),
             ),
-            child: IconButton(
-              icon: const Icon(Icons.notifications_none_rounded,
-                  color: Color(0xFFEADBCE), size: 20),
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Henüz bildirim yok.'))),
-            ),
-          ),
+          ]),
         ],
       ),
     );

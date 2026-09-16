@@ -995,6 +995,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+              if (!_isPlus && !_isPro) ...[
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => const PremiumScreen())),
+                  child: Container(
+                    width: 46, height: 46,
+                    decoration: BoxDecoration(
+                      color: AppTheme.terracotta,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Center(
+                        child: Text('👑', style: TextStyle(fontSize: 18))),
+                  ),
+                ),
+              ],
               const SizedBox(width: 10),
               GestureDetector(
                 onTap: _showShareOptions,
