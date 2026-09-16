@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
-import 'dart:io';
 import '../theme/app_theme.dart';
 import '../models/journal.dart';
 import '../models/entry.dart';
@@ -9,11 +8,6 @@ import '../services/entry_service.dart';
 import '../services/journal_service.dart';
 import '../services/subscription_service.dart';
 import 'canvas_editor_screen.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:ui' as ui;
-import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
@@ -34,8 +28,8 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
   int _currentPage = 0;
   String? _coverImageUrl;
   final GlobalKey _pageKey = GlobalKey();
-  bool _isPremium = false;
-  double _exportPixelRatio = 1.0; // Free: 1x, Plus: 2x HD, PRO: 3x 4K
+  bool _isPro = false;
+  bool _isPlus = false;
   bool _hasError = false;
 
   @override
@@ -51,8 +45,8 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     try {
       final status = await SubscriptionService.instance.getStatus();
       setState(() {
-        _isPremium = status.isPlus || status.isPro;
-        _exportPixelRatio = status.isPro ? 3.0 : (status.isPlus ? 2.0 : 1.0);
+        _isPro = status.isPro;
+        _isPlus = status.isPlus;
       });
     } catch (e) {}
   }
@@ -631,125 +625,6 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     );
   }
 
-  Future<void> _sharePage() async {
-    try {
-      final boundary = _pageKey.currentContext?.findRenderObject()
-      as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: _exportPixelRatio);
-      final byteData =
-      await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
-      final watermarkedBytes = await _addWatermark(bytes, premium: _isPremium);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/seyahood_page.png');
-      await file.writeAsBytes(watermarkedBytes);
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Seyahood\'da bir anım ✈️');
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Paylaşılamadı!')));
-    }
-  }
-
-  Future<void> _shareStory() async {
-    try {
-      final boundary = _pageKey.currentContext?.findRenderObject()
-      as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      final image = await boundary.toImage(pixelRatio: _exportPixelRatio);
-      final byteData =
-      await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
-      final storyBytes = await _convertToStoryFormat(bytes);
-      final watermarkedBytes =
-      await _addWatermark(storyBytes, premium: _isPremium, isStory: true);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/seyahood_story.png');
-      await file.writeAsBytes(watermarkedBytes);
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Seyahood\'da bir anım ✈️');
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Paylaşılamadı!')));
-    }
-  }
-
-  Future<Uint8List> _addWatermark(Uint8List bytes,
-      {bool premium = false, bool isStory = false}) async {
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawImage(image, Offset.zero, Paint());
-    final w = image.width.toDouble();
-    final h = image.height.toDouble();
-    if (premium) {
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: 'Seyahood',
-          style: TextStyle(color: Colors.white.withOpacity(0.6),
-              fontSize: w * 0.03, fontWeight: FontWeight.w500),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas,
-          Offset(w - textPainter.width - 20, h - textPainter.height - 20));
-    } else {
-      final bannerHeight = h * 0.09;
-      final paint = Paint()..color = const Color(0xFFC4956A);
-      canvas.drawRect(
-          Rect.fromLTWH(0, h - bannerHeight, w, bannerHeight), paint);
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: '✈️  Seyahood ile oluşturuldu',
-          style: TextStyle(color: Colors.white,
-              fontSize: w * 0.038, fontWeight: FontWeight.w600),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-          canvas,
-          Offset((w - textPainter.width) / 2,
-              h - bannerHeight + (bannerHeight - textPainter.height) / 2));
-    }
-    final picture = recorder.endRecording();
-    final finalImage = await picture.toImage(image.width, image.height);
-    final finalBytes =
-    await finalImage.toByteData(format: ui.ImageByteFormat.png);
-    return finalBytes!.buffer.asUint8List();
-  }
-
-  Future<Uint8List> _convertToStoryFormat(Uint8List bytes) async {
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
-    final storyWidth = image.width.toDouble();
-    final storyHeight = storyWidth * 16 / 9;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final bgPaint = Paint()..color = const Color(0xFFFAF7F2);
-    canvas.drawRect(Rect.fromLTWH(0, 0, storyWidth, storyHeight), bgPaint);
-    final scale = storyWidth / image.width;
-    final scaledHeight = image.height * scale;
-    final top = (storyHeight - scaledHeight) / 2;
-    canvas.drawImageRect(
-      image,
-      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      Rect.fromLTWH(0, top, storyWidth, scaledHeight),
-      Paint(),
-    );
-    final picture = recorder.endRecording();
-    final finalImage =
-    await picture.toImage(storyWidth.toInt(), storyHeight.toInt());
-    final finalBytes =
-    await finalImage.toByteData(format: ui.ImageByteFormat.png);
-    return finalBytes!.buffer.asUint8List();
-  }
-
   void _showShareOptions() {
     final entry = _entries.isNotEmpty ? _entries[_currentPage] : null;
     final username = widget.journal.username ?? '';
@@ -772,46 +647,8 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
       username: username,
       pageIndex: _currentPage,
       totalPages: _entries.length,
-    );
-  }
-
-  Widget _buildShareOption(IconData icon, String title, String subtitle,
-      bool isPremium, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: isPremium ? const Color(0xFFF7EBE1) : const Color(0xFFFAF7F2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: isPremium
-                  ? AppTheme.terracotta.withOpacity(0.25) : AppTheme.border,
-              width: 0.8),
-        ),
-        child: Row(children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: isPremium ? AppTheme.terracotta : AppTheme.navDark,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTheme.sansBody(
-                    size: 13, weight: FontWeight.w700)),
-                Text(subtitle, style: AppTheme.sansBody(
-                    size: 11, color: AppTheme.textSecondary)),
-              ])),
-          Icon(
-              isPremium ? Icons.lock_outline : Icons.arrow_forward_ios_rounded,
-              color: isPremium ? AppTheme.terracotta : const Color(0xFF9E8E81),
-              size: 15),
-        ]),
-      ),
+      isPro: _isPro,
+      isPlus: _isPlus,
     );
   }
 
