@@ -3,16 +3,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/ad_config.dart';
 import 'subscription_service.dart';
 
-/// Sayfa kaydetme gibi "iş bitti" anlarında, her N kaydetmede bir
-/// geçiş (interstitial) reklamı gösterir. Free kullanıcılara özeldir,
-/// spam hissi vermemesi için sıklığı [AdConfig.interstitialEveryNSaves]
-/// ile sınırlanır ve bir sonraki gösterim için önceden yüklenir.
+/// Sayfa kaydetme veya bir ajandayı bitirip çıkma gibi "iş bitti"
+/// anlarında, her N olayda bir geçiş (interstitial) reklamı gösterir.
+/// Free kullanıcılara özeldir, spam hissi vermemesi için sıklığı
+/// [AdConfig] üzerinden sınırlanır ve bir sonraki gösterim için önceden
+/// yüklenir.
 class InterstitialAdService {
   InterstitialAdService._internal();
   static final InterstitialAdService instance =
       InterstitialAdService._internal();
 
   static const _saveCountKey = 'canvas_save_count';
+  static const _journalViewCountKey = 'explore_journal_view_count';
 
   InterstitialAd? _ad;
   bool _isLoading = false;
@@ -37,7 +39,16 @@ class InterstitialAdService {
 
   /// Bir sayfa başarıyla kaydedildiğinde çağrılır. Kullanıcı Free ise
   /// ve sayaç eşiğe ulaştıysa yüklü reklamı gösterir.
-  Future<void> onPageSaved() async {
+  Future<void> onPageSaved() =>
+      _maybeShow(_saveCountKey, AdConfig.interstitialEveryNSaves);
+
+  /// Kullanıcı Keşfet'te başkasının ajandasını bitirip çıktığında
+  /// çağrılır. Kullanıcı Free ise ve sayaç eşiğe ulaştıysa yüklü
+  /// reklamı gösterir.
+  Future<void> onJournalViewed() => _maybeShow(
+      _journalViewCountKey, AdConfig.interstitialEveryNJournalViews);
+
+  Future<void> _maybeShow(String counterKey, int everyN) async {
     try {
       final status = await SubscriptionService.instance.getStatus();
       if (status.isPlus || status.isPro) return;
@@ -46,10 +57,10 @@ class InterstitialAdService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final count = (prefs.getInt(_saveCountKey) ?? 0) + 1;
-    await prefs.setInt(_saveCountKey, count);
+    final count = (prefs.getInt(counterKey) ?? 0) + 1;
+    await prefs.setInt(counterKey, count);
 
-    if (count % AdConfig.interstitialEveryNSaves != 0) return;
+    if (count % everyN != 0) return;
     if (_ad == null) {
       preload();
       return;

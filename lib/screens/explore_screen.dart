@@ -15,6 +15,7 @@ import 'user_profile_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/storage_service.dart';
+import '../services/interstitial_ad_service.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -815,9 +816,20 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
     }
   }
 
+  void _exit() {
+    InterstitialAdService.instance.onJournalViewed();
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _exit();
+      },
+      child: Scaffold(
       backgroundColor: AppTheme.navDark,
       appBar: AppBar(
         backgroundColor: AppTheme.navDark,
@@ -830,7 +842,7 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
             child: const Icon(Icons.arrow_back_ios_new_rounded,
                 color: Color(0xFFFAF7F2), size: 16),
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _exit,
         ),
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.journal.title,
@@ -858,6 +870,7 @@ class _ExploreJournalScreenState extends State<ExploreJournalScreen> {
         Expanded(child: _buildPageView()),
         _buildThumbnailList(),
       ]),
+      ),
     );
   }
 

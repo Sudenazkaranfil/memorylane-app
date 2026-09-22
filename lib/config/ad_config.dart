@@ -37,4 +37,7 @@ class AdConfig {
 
   /// Kaç başarılı sayfa kaydından birinde geçiş reklamı gösterilsin.
   static const int interstitialEveryNSaves = 3;
+
+  /// Kaç başkasının ajandasından çıkışta birinde geçiş reklamı gösterilsin.
+  static const int interstitialEveryNJournalViews = 4;
 }
