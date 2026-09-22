@@ -136,13 +136,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadProfile() async {
     final username = await StorageService.getUsername();
     final token = await StorageService.getToken();
-    final journals = await JournalService.getJournals();
+
+    List<Journal> journals = [];
+    try {
+      journals = await JournalService.getJournals();
+    } catch (e) {
+      debugPrint('❌ PROFILE ERROR (journals): $e');
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+      return;
+    }
 
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/auth/profile'),
         headers: {'Authorization': 'Bearer $token'},
       );
+      debugPrint('PROFILE /auth/profile status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -157,8 +169,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 data['coverColor'].replaceFirst('#', '0xFF')));
           }
         });
+      } else {
+        debugPrint('❌ PROFILE ERROR (auth/profile body): ${response.body}');
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
       }
     } catch (e) {
+      debugPrint('❌ PROFILE ERROR (auth/profile): $e');
       setState(() {
         _isLoading = false;
         _hasError = true;
