@@ -479,51 +479,76 @@ class _PremiumScreenState extends State<PremiumScreen> {
   Widget _buildComparisonTable() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(18),
-      decoration: AppTheme.cardDecoration,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Detaylı Karşılaştırma',
-            style: GoogleFonts.playfairDisplay(
-                fontSize: 16, fontWeight: FontWeight.w800,
-                color: AppTheme.textPrimary)),
-        const SizedBox(height: 4),
-        Text('Free, Plus ve PRO plan farkları',
-            style: AppTheme.sansBody(size: 12, color: AppTheme.textSecondary)),
-        const SizedBox(height: 16),
-        Row(children: [
-          const Expanded(flex: 3, child: SizedBox()),
-          Expanded(
-              flex: 2,
-              child: Center(
-                  child: Text('Free',
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700,
-                          color: AppTheme.textSecondary)))),
-          Expanded(
-              flex: 2,
-              child: Center(
-                  child: Text('Plus',
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w800,
-                          color: AppTheme.sage)))),
-          Expanded(
-              flex: 2,
-              child: Center(
-                  child: Text('PRO',
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w800,
-                          color: AppTheme.terracotta)))),
-        ]),
-        const SizedBox(height: 8),
-        const Divider(height: 1, color: AppTheme.border),
-        ..._features.map(_buildFeatureRow),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.border, width: 0.5),
+        boxShadow: [AppTheme.softShadow],
+      ),
+      child: Stack(clipBehavior: Clip.none, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 24, 18, 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Neyin nesi bu planlar?',
+                style: GoogleFonts.playfairDisplay(
+                    fontSize: 17, fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary)),
+            const SizedBox(height: 3),
+            Text('Sırt çantana göre plan seç',
+                style: AppTheme.sansBody(size: 12, color: AppTheme.textSecondary)),
+            const SizedBox(height: 18),
+            Row(children: [
+              const Expanded(flex: 3, child: SizedBox()),
+              Expanded(
+                  flex: 2,
+                  child: Center(
+                      child: Text('Free',
+                          style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w700,
+                              color: AppTheme.textSecondary)))),
+              Expanded(
+                  flex: 2,
+                  child: Center(
+                      child: Text('🧭 Plus',
+                          style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w800,
+                              color: AppTheme.sage)))),
+              Expanded(
+                  flex: 2,
+                  child: Center(
+                      child: Text('👑 PRO',
+                          style: TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w800,
+                              color: AppTheme.terracotta)))),
+            ]),
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: AppTheme.border),
+            ..._features.map(_buildFeatureRow),
+          ]),
+        ),
+        // Washi bant köşesi
+        Positioned(
+          top: -10, left: 28,
+          child: Transform.rotate(
+            angle: -0.08,
+            child: Container(
+              width: 64, height: 20,
+              decoration: BoxDecoration(
+                color: AppTheme.terracotta.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(2),
+                border: Border.all(
+                    color: Colors.white.withOpacity(0.4), width: 1),
+              ),
+            ),
+          ),
+        ),
       ]),
     );
   }
 
   Widget _buildFeatureRow(_ComparisonFeature f) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: const BoxDecoration(
           border:
               Border(bottom: BorderSide(color: AppTheme.border, width: 0.5))),
@@ -531,33 +556,56 @@ class _PremiumScreenState extends State<PremiumScreen> {
         Expanded(
             flex: 3,
             child: Row(children: [
-              Icon(f.icon, size: 15, color: AppTheme.terracotta),
-              const SizedBox(width: 8),
+              Container(
+                width: 26, height: 26,
+                decoration: BoxDecoration(
+                  color: AppTheme.terracottaLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(f.icon, size: 13, color: AppTheme.terracottaDark),
+              ),
+              const SizedBox(width: 9),
               Expanded(
                   child: Text(f.label,
                       style: AppTheme.sansBody(
                           size: 12, weight: FontWeight.w600))),
             ])),
-        Expanded(flex: 2, child: Center(child: _buildFeatureValue(f.free))),
-        Expanded(flex: 2, child: Center(child: _buildFeatureValue(f.plus))),
-        Expanded(flex: 2, child: Center(child: _buildFeatureValue(f.pro))),
+        Expanded(
+            flex: 2,
+            child: Center(
+                child: _buildFeatureValue(f.free, AppTheme.textMuted))),
+        Expanded(
+            flex: 2,
+            child: Center(child: _buildFeatureValue(f.plus, AppTheme.sage))),
+        Expanded(
+            flex: 2,
+            child: Center(
+                child: _buildFeatureValue(f.pro, AppTheme.terracotta))),
       ]),
     );
   }
 
-  Widget _buildFeatureValue(String? value) {
+  Widget _buildFeatureValue(String? value, Color tierColor) {
     if (value == null) {
-      return const Icon(Icons.remove_rounded, size: 15, color: AppTheme.textMuted);
+      return Container(
+        width: 16, height: 16,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppTheme.border, width: 1.4),
+        ),
+      );
     }
     if (value == '✓') {
-      return const Icon(Icons.check_circle_rounded,
-          size: 16, color: AppTheme.sage);
+      return Container(
+        width: 18, height: 18,
+        decoration: BoxDecoration(color: tierColor, shape: BoxShape.circle),
+        child: const Icon(Icons.check_rounded, size: 12, color: Colors.white),
+      );
     }
     return Text(value,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-            fontSize: 10, fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary));
+        style: TextStyle(
+            fontSize: 10, fontWeight: FontWeight.w800, color: tierColor));
   }
 
   Widget _buildPromoCodeSection() {
