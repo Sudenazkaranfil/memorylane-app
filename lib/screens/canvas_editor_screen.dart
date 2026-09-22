@@ -10,6 +10,7 @@ import '../models/entry.dart';
 import '../services/entry_service.dart';
 import '../services/photo_service.dart';
 import '../services/subscription_service.dart';
+import '../services/interstitial_ad_service.dart';
 import '../widgets/limit_reached_sheet.dart';
 import 'premium_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -300,6 +301,8 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
       await EntryService.updateEntry(widget.journalId, entry.id, {
         ...entryData, 'canvasData': canvasData,
       });
+
+      InterstitialAdService.instance.onPageSaved();
 
       if (mounted) {
         setState(() => _isLoading = false);

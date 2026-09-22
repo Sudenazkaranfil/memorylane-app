@@ -21,4 +21,20 @@ class AdConfig {
     }
     return Platform.isIOS ? _realBannerIOS : _realBannerAndroid;
   }
+
+  static const String _testInterstitialAndroid = 'ca-app-pub-3940256099942544/1033173712';
+  static const String _testInterstitialIOS = 'ca-app-pub-3940256099942544/4411468910';
+
+  static const String _realInterstitialAndroid = 'REPLACE_WITH_REAL_ANDROID_INTERSTITIAL_ID';
+  static const String _realInterstitialIOS = 'REPLACE_WITH_REAL_IOS_INTERSTITIAL_ID';
+
+  static String get interstitialAdUnitId {
+    if (useTestAds) {
+      return Platform.isIOS ? _testInterstitialIOS : _testInterstitialAndroid;
+    }
+    return Platform.isIOS ? _realInterstitialIOS : _realInterstitialAndroid;
+  }
+
+  /// Kaç başarılı sayfa kaydından birinde geçiş reklamı gösterilsin.
+  static const int interstitialEveryNSaves = 3;
 }
