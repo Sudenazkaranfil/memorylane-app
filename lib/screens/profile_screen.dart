@@ -164,7 +164,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _profileImageUrl = data['profileImageUrl'];
           _location = data['location'];
           // Ekle:
-          if (data['coverColor'] != null) {
+          if (data['coverColor'] != null &&
+              (data['coverColor'] as String).isNotEmpty) {
             _coverColor = Color(int.parse(
                 data['coverColor'].replaceFirst('#', '0xFF')));
           }
