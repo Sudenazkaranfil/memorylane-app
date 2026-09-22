@@ -23,6 +23,7 @@ import 'premium_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
 import '../widgets/plan_badge.dart';
+import '../widgets/ad_banner.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -793,7 +794,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildStats(),
             const SizedBox(height: 14),
             _buildLevelCard(),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
+            const AdBanner(),
+            const SizedBox(height: 4),
             _buildJournalGrid(),
             const SizedBox(height: 24),
             _buildMenu(),

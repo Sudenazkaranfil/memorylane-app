@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/storage_service.dart';
 import '../config/api_config.dart';
+import '../widgets/ad_banner.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -70,6 +71,7 @@ class _MapScreenState extends State<MapScreen> {
                 ? const MyMapTab()
                 : const ExploreMapTab(),
           ),
+          const AdBanner(),
         ]),
       ),
     );
