@@ -489,12 +489,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 24, 18, 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Neyin nesi bu planlar?',
+            Text('Detaylı Karşılaştırma',
                 style: GoogleFonts.playfairDisplay(
                     fontSize: 17, fontWeight: FontWeight.w800,
                     color: AppTheme.textPrimary)),
             const SizedBox(height: 3),
-            Text('Sırt çantana göre plan seç',
+            Text('Free, Plus ve PRO arasındaki farklar',
                 style: AppTheme.sansBody(size: 12, color: AppTheme.textSecondary)),
             const SizedBox(height: 18),
             Row(children: [
