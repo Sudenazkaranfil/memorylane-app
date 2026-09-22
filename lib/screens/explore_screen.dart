@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import 'user_profile_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import '../widgets/ad_banner.dart';
 import 'user_profile_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -422,6 +423,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 if (index == 0 && _searchController.text.isEmpty) {
                   return Column(children: [
                     _buildPopularUsers(),
+                    const AdBanner(),
                     _buildFeaturedCard(_journals[0]),
                   ]);
                 }

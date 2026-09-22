@@ -17,6 +17,7 @@ import 'profile_screen.dart';
 import 'premium_screen.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/error_view.dart';
+import '../widgets/ad_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -338,7 +339,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _buildQuickPromptCard(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                const AdBanner(),
+                const SizedBox(height: 8),
                 _buildJournalsSection(),
                 if (_savedJournals.isNotEmpty) ...[
                   const SizedBox(height: 24),

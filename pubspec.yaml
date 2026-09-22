@@ -27,6 +27,7 @@ dependencies:
   flutter_animate: ^4.5.0
   google_fonts: ^6.2.1
   url_launcher: ^6.2.0
+  google_mobile_ads: ^6.0.0
 
 dev_dependencies:
   flutter_test:
