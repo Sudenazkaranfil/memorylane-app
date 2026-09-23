@@ -28,6 +28,7 @@ dependencies:
   google_fonts: ^6.2.1
   url_launcher: ^6.2.0
   google_mobile_ads: ^6.0.0
+  exif_reader: ^4.2.0
 
 dev_dependencies:
   flutter_test:

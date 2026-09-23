@@ -345,6 +345,23 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
           type: 'image', content: savedFile.path,
         ));
       });
+
+      // 1. katman: fotoğrafın EXIF'inde GPS varsa ücretsiz ve anında ekle.
+      final gps = await PhotoService.extractExifGps(savedFile.path);
+      if (gps != null) {
+        final name = await PhotoService.reverseGeocode(gps['lat']!, gps['lng']!);
+        if (name != null) {
+          if (mounted) {
+            setState(() => _locations.add(_LocationItem(
+                name: name, lat: gps['lat'], lng: gps['lng'])));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('📍 "$name" fotoğraftan otomatik eklendi')));
+          }
+          return;
+        }
+      }
+
+      // 2-3. katman (Google Vision + Claude fallback) EXIF yoksa PRO'ya sunulur.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('📍 Bu fotoğrafın konumunu tahmin edeyim mi?'),
@@ -379,11 +396,12 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
       duration: Duration(seconds: 3),
     ));
     try {
-      final locationName = await PhotoService.estimateLocation(filePath);
+      final guess = await PhotoService.estimateLocation(filePath);
       if (!mounted) return;
-      setState(() => _locations.add(_LocationItem(name: locationName)));
+      setState(() => _locations.add(
+          _LocationItem(name: guess.name, lat: guess.lat, lng: guess.lng)));
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('📍 "$locationName" eklendi')));
+          SnackBar(content: Text('📍 "${guess.name}" eklendi')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
