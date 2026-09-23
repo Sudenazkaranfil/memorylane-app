@@ -5,6 +5,11 @@ import 'dart:convert';
 import '../config/api_config.dart';
 import 'storage_service.dart';
 
+class LocationEstimationException implements Exception {
+  final String code;
+  LocationEstimationException(this.code);
+}
+
 class PhotoService {
   static const String baseUrl = ApiConfig.baseUrl;
 
@@ -48,5 +53,25 @@ class PhotoService {
       return data['secure_url'];
     }
     throw Exception('Cloudinary yükleme başarısız');
+  }
+
+  static Future<String> estimateLocation(String filePath) async {
+    final token = await StorageService.getToken();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/photos/estimate-location'),
+    );
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(body);
+      return data['locationName'];
+    }
+    final error = jsonDecode(body)['error'] ?? 'UNKNOWN';
+    throw LocationEstimationException(error);
   }
 }

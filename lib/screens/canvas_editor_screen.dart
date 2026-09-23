@@ -345,8 +345,49 @@ class _CanvasEditorScreenState extends State<CanvasEditorScreen> {
           type: 'image', content: savedFile.path,
         ));
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('📍 Bu fotoğrafın konumunu tahmin edeyim mi?'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Tahmin Et',
+            onPressed: () => _isPro
+                ? _estimateLocationFromPhoto(savedFile.path)
+                : _showAiLocationLockedMessage(),
+          ),
+        ));
+      }
     } finally {
       _isPickingImage = false;
+    }
+  }
+
+  void _showAiLocationLockedMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('AI konum tahmini PRO üyelere özel ✨'),
+      action: SnackBarAction(
+        label: "PRO'ya Geç",
+        onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (context) => const PremiumScreen())),
+      ),
+    ));
+  }
+
+  Future<void> _estimateLocationFromPhoto(String filePath) async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('🔍 Konum tahmin ediliyor...'),
+      duration: Duration(seconds: 3),
+    ));
+    try {
+      final locationName = await PhotoService.estimateLocation(filePath);
+      if (!mounted) return;
+      setState(() => _locations.add(_LocationItem(name: locationName)));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('📍 "$locationName" eklendi')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Konum tahmin edilemedi, tekrar dene.')));
     }
   }
 
