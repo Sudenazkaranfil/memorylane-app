@@ -16,7 +16,8 @@ import 'premium_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const Set<String> kFreeCanvasFonts = {
-  'Plus Jakarta Sans', 'Playfair Display', 'Caveat',
+  'Plus Jakarta Sans', 'Playfair Display', 'Caveat', 'Dancing Script',
+  'Roboto Mono', 'Lora', 'Josefin Sans', 'Raleway',
 };
 
 class _StickerItem {

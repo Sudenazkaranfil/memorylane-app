@@ -221,7 +221,8 @@ class _ShareStoryModalState extends State<ShareStoryModal> {
         setState(() => _isProcessing = false);
         return;
       }
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final pixelRatio = _isPro ? 3.0 : (_isPlus ? 2.0 : 1.0);
+      final image = await boundary.toImage(pixelRatio: pixelRatio);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final bytes = byteData!.buffer.asUint8List();
       final dir = await getTemporaryDirectory();
